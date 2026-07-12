@@ -6,6 +6,25 @@ export interface EdgeDevice {
   paired: boolean;
   pairedAt: string | null;
   lastSeen: string;
+  measurementConfig: EdgeMeasurementConfig;
+}
+
+export interface EdgeMeasurementConfig {
+  intervalSec: number;
+  durationSec: number;
+  scheduledTimeLocal: string | null;
+  deviceName: string | null;
+  updatedAt: string;
+}
+
+function defaultMeasurementConfig(): EdgeMeasurementConfig {
+  return {
+    intervalSec: 20,
+    durationSec: 4,
+    scheduledTimeLocal: null,
+    deviceName: null,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 @Injectable()
@@ -30,6 +49,7 @@ export class EdgeStore {
       paired: false,
       pairedAt: null,
       lastSeen: new Date().toISOString(),
+      measurementConfig: defaultMeasurementConfig(),
     };
     this.devices.set(deviceId, device);
     return device;
@@ -52,6 +72,7 @@ export class EdgeStore {
       paired: true,
       pairedAt: now,
       lastSeen: now,
+      measurementConfig: defaultMeasurementConfig(),
     };
     this.devices.set(deviceId, device);
     return device;
@@ -86,5 +107,29 @@ export class EdgeStore {
     if (!device) return false;
     this.devices.delete(deviceId);
     return true;
+  }
+
+  config(deviceId: string): EdgeMeasurementConfig {
+    const existing = this.devices.get(deviceId);
+    if (existing) {
+      return existing.measurementConfig;
+    }
+
+    const created = this.connect(deviceId);
+    return created.measurementConfig;
+  }
+
+  updateConfig(
+    deviceId: string,
+    patch: Partial<Omit<EdgeMeasurementConfig, 'updatedAt'>>,
+  ): EdgeMeasurementConfig {
+    const device = this.devices.get(deviceId) ?? this.connect(deviceId);
+    device.measurementConfig = {
+      ...device.measurementConfig,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    };
+    device.lastSeen = device.measurementConfig.updatedAt;
+    return device.measurementConfig;
   }
 }
