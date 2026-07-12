@@ -103,6 +103,8 @@
     "rxjs": "~7.8.0",
     "socket.io": "^4.7.5",
     "tslib": "^2.7.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typeorm": "~0.3.20",
     "zone.js": "~0.14.10"
   },
@@ -141,8 +143,6 @@
     "prettier": "^3.3.2",
     "supertest": "^7.0.0",
     "ts-jest": "^29.1.5",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "~5.4.5"
   }
 }
