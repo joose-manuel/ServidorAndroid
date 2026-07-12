@@ -9,7 +9,7 @@ export interface Environment {
 
 export const environment: Environment = {
   production: false,
-  apiBaseUrl: 'http://localhost:3000/api',
+  apiBaseUrl: 'https://servidorandroid.seenode.app/api',
   supabaseUrl: 'http://localhost:54321',
   supabaseAnonKey: '',
   turnServerUrl: 'turn:localhost:3478',

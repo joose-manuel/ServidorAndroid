@@ -2,7 +2,7 @@ import { Environment } from './environment';
 
 export const environment: Environment = {
   production: true,
-  apiBaseUrl: 'https://api.servidorandroid.fly.dev/api',
+  apiBaseUrl: 'https://servidorandroid.seenode.app/api',
   supabaseUrl: 'https://app.supabase.co',
   supabaseAnonKey: '__PROD_SUPABASE_ANON_KEY__',
   turnServerUrl: 'turn:turn.example.com:3478',

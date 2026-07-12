@@ -20,6 +20,7 @@
     "android": "nx serve edge",
     "start": "nx serve",
     "start:web": "nx serve web",
+    "start:web:seenode": "node apps/web/server.cjs",
     "start:api": "nx serve api",
     "start:api:prod": "TS_NODE_PROJECT=apps/api/tsconfig.app.json node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/main.ts",
     "start:api:seenode": "TS_NODE_PROJECT=apps/api/tsconfig.app.json node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/main.ts",
