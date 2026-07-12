@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { HudPanelComponent } from '@servidor/ui-components';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { ContentService } from '../../core/content/content.service';
 import { PairingStoreService } from '../../core/pairing/pairing-store.service';
+import { EdgeMetricsSnapshot } from '@servidor/shared-types';
 
 interface HealthResponse {
   status: 'ok';
@@ -29,6 +30,8 @@ interface EdgeStatusResponse {
         <div class="terminal__line">&gt; health {{ health()?.status ?? 'sin respuesta' }}</div>
         <div class="terminal__line">&gt; paired {{ edgeStatus()?.paired ?? false }}</div>
         <div class="terminal__line">&gt; deviceId {{ pairing.deviceId() ?? 'sin emparejar' }}</div>
+        <div class="terminal__line">&gt; deviceName {{ snapshot()?.deviceName ?? 'sin nombre' }}</div>
+        <div class="terminal__line">&gt; temperature {{ snapshot()?.battery?.temperatureC ?? 'sin lectura' }}</div>
       </div>
 
       <hud-panel [title]="content.t('settings', 'serverPanel', 'Servidor')">
@@ -67,6 +70,35 @@ interface EdgeStatusResponse {
               </div>
             </div>
           }
+        </div>
+      </hud-panel>
+
+      <hud-panel title="Configuración de mediciones">
+        <div class="config">
+          <div class="config__row">
+            <span class="config__label">intervalo:</span>
+            <span>{{ snapshot()?.measurementConfig?.intervalSec ?? '—' }} s</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">duración:</span>
+            <span>{{ snapshot()?.measurementConfig?.durationSec ?? '—' }} s</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">hora fija:</span>
+            <span>{{ snapshot()?.measurementConfig?.scheduledTimeLocal ?? 'sin horario fijo' }}</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">nombre del dispositivo:</span>
+            <span>{{ snapshot()?.deviceName ?? 'sin nombre' }}</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">modelo:</span>
+            <span>{{ snapshot()?.deviceModel ?? 'sin detectar' }}</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">temperatura:</span>
+            <span>{{ snapshot()?.battery?.temperatureC ?? 'sin lectura' }} °C</span>
+          </div>
         </div>
       </hud-panel>
     </hud-panel>
@@ -145,9 +177,28 @@ interface EdgeStatusResponse {
       color: #5c6773;
       border: 1px solid #1c2530;
     }
+    .config {
+      font-family: 'JetBrains Mono', monospace;
+      color: #d7dee3;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .config__row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid #1c2530;
+      padding-bottom: 10px;
+      font-size: 12px;
+    }
+    .config__label {
+      color: #ff7a1a;
+      text-transform: uppercase;
+    }
   `],
 })
-export class SettingsComponent implements OnInit {
+export class SettingsComponent implements OnInit, OnDestroy {
   private readonly http = inject(HttpClient);
   readonly server = inject(ServerConfigService);
   readonly content = inject(ContentService);
@@ -157,9 +208,19 @@ export class SettingsComponent implements OnInit {
   readonly draft = signal('');
   readonly health = signal<HealthResponse | null>(null);
   readonly edgeStatus = signal<EdgeStatusResponse | null>(null);
+  readonly snapshot = signal<EdgeMetricsSnapshot | null>(null);
+  private refreshTimer?: ReturnType<typeof setInterval>;
 
   ngOnInit(): void {
     void this.refresh();
+    this.refreshTimer = setInterval(() => void this.refresh(), 5000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
   }
 
   toggleEdit(): void {
@@ -189,12 +250,13 @@ export class SettingsComponent implements OnInit {
     await this.server.autoDiscover();
     this.loadHealth();
     this.loadEdgeStatus();
+    this.loadSnapshot();
   }
 
   private loadHealth(): void {
     const base = this.server.apiBaseUrl();
     if (!base) return;
-    this.http.get<HealthResponse>(`${base}/health`).subscribe({
+    this.http.get<HealthResponse>(`${base}/health?_=${Date.now()}`).subscribe({
       next: (health) => this.health.set(health),
       error: () => this.health.set(null),
     });
@@ -207,9 +269,23 @@ export class SettingsComponent implements OnInit {
       this.edgeStatus.set(null);
       return;
     }
-    this.http.get<EdgeStatusResponse>(`${base}/edge/status/${deviceId}`).subscribe({
+    this.http.get<EdgeStatusResponse>(`${base}/edge/status/${deviceId}?_=${Date.now()}`).subscribe({
       next: (status) => this.edgeStatus.set(status),
       error: () => this.edgeStatus.set(null),
+    });
+  }
+
+  private loadSnapshot(): void {
+    const base = this.server.apiBaseUrl();
+    const deviceId = this.pairing.deviceId();
+    if (!base || !deviceId) {
+      this.snapshot.set(null);
+      return;
+    }
+
+    this.http.get<EdgeMetricsSnapshot | null>(`${base}/metrics/current/${deviceId}?_=${Date.now()}`).subscribe({
+      next: (snapshot) => this.snapshot.set(snapshot),
+      error: () => this.snapshot.set(null),
     });
   }
 }

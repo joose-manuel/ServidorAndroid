@@ -44,6 +44,7 @@ export class MetricsReporterService {
     try { speedService = this.injector.get(SpeedTestService); } catch {}
 
     const speed = speedService?.current() ?? null;
+    const speedConfig = speedService?.config() ?? null;
     const netStatus = this.net.current();
     const bat = this.battery.info();
     const deviceInfo = this.deviceInfo.current();
@@ -58,6 +59,9 @@ export class MetricsReporterService {
       batteryLevelPercent: bat.levelPercent,
       isCharging: bat.isCharging,
       temperatureC: deviceInfo.temperatureC,
+      speedIntervalSec: speedConfig?.intervalSec ?? null,
+      speedDurationSec: speedConfig?.durationSec ?? null,
+      scheduledTimeLocal: speedConfig?.scheduledTimeLocal ?? null,
       connectedDevicesCount: null,
       downloadMbps: speed?.downloadMbps ?? speed?.mbps ?? null,
       uploadMbps: speed?.uploadMbps ?? null,

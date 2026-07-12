@@ -62,7 +62,7 @@ export class PairingStoreService {
     this.syncing = true;
     try {
       const active = await firstValueFrom(
-        this.http.get<ActiveEdgeResponse | null>(`${base}/edge/active`),
+        this.http.get<ActiveEdgeResponse | null>(`${base}/edge/active?_=${Date.now()}`),
       );
 
       if (active?.deviceId) {
