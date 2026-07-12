@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { NetworkStatusService } from '../../core/network/network-status.service';
-import { TunnelService } from '../../core/tunnel/tunnel.service';
 import { PairingStoreService } from '../../core/pairing/pairing-store.service';
 
 @Component({
@@ -15,10 +14,6 @@ import { PairingStoreService } from '../../core/pairing/pairing-store.service';
       <h2 class="s__title">&gt; ajustes</h2>
 
       <section class="s__group">
-        <div class="s__row">
-          <span class="s__label">tunnel</span>
-          <span class="s__val" [class]="tunnelClass()">{{ tunnelLabel() }}</span>
-        </div>
         <div class="s__row">
           <span class="s__label">servidor</span>
           <span class="s__val">{{ server.apiBaseUrl() || '—' }}</span>
@@ -93,24 +88,8 @@ import { PairingStoreService } from '../../core/pairing/pairing-store.service';
 export class SettingsComponent {
   readonly server = inject(ServerConfigService);
   readonly net = inject(NetworkStatusService);
-  readonly tunnel = inject(TunnelService);
   readonly pair = inject(PairingStoreService);
   private readonly router = inject(Router);
-
-  tunnelLabel(): string {
-    const s = this.tunnel.state();
-    if (s === 'running') return 'activo';
-    if (s === 'starting') return 'arrancando…';
-    if (s === 'error') return 'error';
-    return 'detenido';
-  }
-
-  tunnelClass(): string {
-    const s = this.tunnel.state();
-    if (s === 'running') return 's__val--ok';
-    if (s === 'error') return 's__val--err';
-    return '';
-  }
 
   clearPairing(): void {
     this.pair.clear();

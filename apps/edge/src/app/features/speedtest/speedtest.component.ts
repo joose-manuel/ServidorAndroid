@@ -1,7 +1,7 @@
-import { Component, inject, computed, signal, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, computed, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SpeedTestService, SpeedSample } from './speedtest.service';
+import { SpeedTestService } from './speedtest.service';
 
 @Component({
   selector: 'app-speedtest',
@@ -14,8 +14,14 @@ import { SpeedTestService, SpeedSample } from './speedtest.service';
       <div class="st__current">
         <div class="st__big">
           @if (svc.current(); as c) {
-            <div class="st__value">{{ c.mbps }}<span class="st__unit"> Mbps</span></div>
-            <div class="st__sub">{{ formatBytes(c.bytesDownloaded) }} en {{ (c.durationMs / 1000).toFixed(1) }}s</div>
+            <div class="st__value">{{ c.downloadMbps ?? '—' }}<span class="st__unit"> Mbps down</span></div>
+            <div class="st__sub">
+              subida {{ c.uploadMbps ?? '—' }} Mbps · ping {{ c.pingMs ?? '—' }} ms ·
+              {{ c.bytesDownloaded ? formatBytes(c.bytesDownloaded) : 'sin descarga' }}
+              @if (c.durationMs > 0) {
+                <span> en {{ (c.durationMs / 1000).toFixed(1) }}s</span>
+              }
+            </div>
           } @else {
             <div class="st__value st__value--muted">—<span class="st__unit"> Mbps</span></div>
             <div class="st__sub">sin medición</div>
@@ -33,6 +39,18 @@ import { SpeedTestService, SpeedSample } from './speedtest.service';
           <div class="st__stat">
             <div class="st__stat-label">muestras</div>
             <div class="st__stat-val">{{ svc.history().length }}</div>
+          </div>
+          <div class="st__stat">
+            <div class="st__stat-label">subida</div>
+            <div class="st__stat-val">{{ svc.current()?.uploadMbps ?? '—' }}</div>
+          </div>
+          <div class="st__stat">
+            <div class="st__stat-label">ping</div>
+            <div class="st__stat-val">{{ svc.current()?.pingMs ?? '—' }}</div>
+          </div>
+          <div class="st__stat">
+            <div class="st__stat-label">payload up</div>
+            <div class="st__stat-val">{{ svc.current() ? formatBytes(svc.current()!.bytesUploaded) : '—' }}</div>
           </div>
         </div>
       </div>
@@ -78,9 +96,23 @@ import { SpeedTestService, SpeedSample } from './speedtest.service';
         <div class="st__field st__field--full">
           <label class="st__label" for="url">URL del archivo a descargar</label>
           <input id="url" type="text"
-                 class="st__input" [ngModel]="cfg().targetUrl"
-                 (ngModelChange)="onUrl($event)" />
+                 class="st__input" [ngModel]="cfg().downloadTargetUrl"
+                 (ngModelChange)="onDownloadUrl($event)" />
           <p class="st__hint">default: cloudflare speed test · el tamaño se calcula como duración × 5 Mbps</p>
+        </div>
+        <div class="st__field st__field--full">
+          <label class="st__label" for="uploadUrl">URL del endpoint de subida</label>
+          <input id="uploadUrl" type="text"
+                 class="st__input" [ngModel]="cfg().uploadTargetUrl"
+                 (ngModelChange)="onUploadUrl($event)" />
+          <p class="st__hint">se usa para medir Mbps de subida con una carga simple</p>
+        </div>
+        <div class="st__field st__field--full">
+          <label class="st__label" for="pingUrl">URL de ping</label>
+          <input id="pingUrl" type="text"
+                 class="st__input" [ngModel]="cfg().pingTargetUrl"
+                 (ngModelChange)="onPingUrl($event)" />
+          <p class="st__hint">endpoint liviano para medir latencia y disponibilidad</p>
         </div>
       </div>
 
@@ -291,8 +323,14 @@ export class SpeedtestComponent implements OnInit, OnDestroy {
   onDuration(v: number): void {
     this.svc.setConfig({ durationSec: Number(v) || 8 });
   }
-  onUrl(v: string): void {
-    this.svc.setConfig({ targetUrl: v });
+  onDownloadUrl(v: string): void {
+    this.svc.setConfig({ downloadTargetUrl: v });
+  }
+  onUploadUrl(v: string): void {
+    this.svc.setConfig({ uploadTargetUrl: v });
+  }
+  onPingUrl(v: string): void {
+    this.svc.setConfig({ pingTargetUrl: v });
   }
 
   formatBytes(n: number): string {

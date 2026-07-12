@@ -18,7 +18,7 @@ import { ContentService } from '../../core/content/content.service';
         <div class="terminal__line">&gt; {{ content.t('settings', 'alertThreshold', 'Alerta si latencia > 300 ms') }}</div>
       </div>
 
-      <hud-panel [title]="content.t('settings', 'serverPanel', 'Servidor (tunnel)')">
+      <hud-panel [title]="content.t('settings', 'serverPanel', 'Servidor')">
         <div class="server">
           <div class="server__row">
             <span class="server__label">{{ content.t('settings', 'apiLabel', 'api:') }}</span>
@@ -31,10 +31,8 @@ import { ContentService } from '../../core/content/content.service';
           <div class="server__status">
             @if (server.discovering()) {
               <span>{{ content.t('settings', 'discovering', 'descubriendo…') }}</span>
-            } @else if (server.lastDiscovery()?.tunnelActive) {
-              <span class="ok">{{ content.t('settings', 'tunnelActive', 'tunnel activo') }} · {{ server.lastDiscovery()!.tunnelUrl }}</span>
             } @else if (server.lastDiscovery()) {
-              <span class="warn">{{ content.t('settings', 'tunnelUndetected', 'tunnel no detectado (accesible solo en LAN)') }}</span>
+              <span class="ok">conectado</span>
             } @else {
               <span class="warn">{{ content.t('settings', 'noContact', 'no se pudo contactar el servidor') }}</span>
             }
@@ -45,7 +43,7 @@ import { ContentService } from '../../core/content/content.service';
               <input
                 class="server__input"
                 type="text"
-                placeholder="https://xxx.trycloudflare.com/api"
+                placeholder="https://servidorandroid.seenode.app/api"
                 [value]="draft()"
                 (input)="onDraftInput($event)"
               />

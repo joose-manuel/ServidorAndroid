@@ -93,7 +93,7 @@ export class ContentController {
         scanInterval: 'Escaneo LAN: cada 15 min',
         pingInterval: 'Ping latencia: cada 3 min',
         alertThreshold: 'Alerta si latencia > 300 ms',
-        serverPanel: 'Servidor (tunnel)',
+        serverPanel: 'Servidor',
         apiLabel: 'api:',
         changeBtn: 'cambiar',
         closeBtn: 'cerrar',
@@ -101,8 +101,6 @@ export class ContentController {
         defaultBtn: 'default',
         rediscoverBtn: 'redescubrir',
         discovering: 'descubriendo…',
-        tunnelActive: 'tunnel activo',
-        tunnelUndetected: 'tunnel no detectado (accesible solo en LAN)',
         noContact: 'no se pudo contactar el servidor',
       },
     };
