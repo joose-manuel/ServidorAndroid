@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Edge Node</string>
+    <string name="title_activity_main">Edge Node</string>
+    <string name="package_name">com.servidorandroid.edge</string>
+    <string name="custom_url_scheme">com.servidorandroid.edge</string>
+</resources>

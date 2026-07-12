@@ -1,0 +1,81 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.shell__sidebar {
+  @include corner-brackets;
+  padding: $panel-padding;
+  background-color: $bg-panel;
+  border-right: 1px solid $border;
+  display: flex;
+  flex-direction: column;
+  gap: $space-lg;
+}
+
+.shell__brand {
+  display: flex;
+  align-items: baseline;
+  gap: $space-sm;
+  font-family: $font-mono;
+  font-size: $font-size-base;
+}
+
+.shell__kicker {
+  color: $accent;
+  font-weight: $font-weight-bold;
+}
+
+.shell__title {
+  color: $text-primary;
+  letter-spacing: 0.08em;
+}
+
+.shell__nav {
+  display: flex;
+  flex-direction: column;
+  gap: $space-sm;
+}
+
+.shell__link {
+  color: $text-primary;
+  font-family: $font-mono;
+  font-size: $font-size-sm;
+  text-decoration: none;
+  padding: $space-xs $space-sm;
+  border-left: 2px solid transparent;
+  transition: color 120ms ease, border-color 120ms ease;
+
+  &:hover {
+    color: $accent;
+    border-left-color: $accent;
+  }
+
+  &--active {
+    color: $accent;
+    border-left-color: $accent;
+  }
+}
+
+.shell__link--pair {
+  margin-top: auto;
+  border-top: 1px solid $border;
+  padding-top: $space-md;
+  color: $accent;
+}
+
+.shell__main {
+  padding: $panel-padding;
+}

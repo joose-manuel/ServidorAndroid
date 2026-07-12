@@ -1,0 +1,17 @@
+@use '../tokens/hud' as *;
+
+/// Terminal-style blinking underscore cursor.
+@mixin cursor-blink($character: '_') {
+  &::after {
+    content: $character;
+    display: inline-block;
+    margin-left: 0.25ch;
+    animation: cursor-blink-step $cursor-blink-ms steps(1) infinite;
+  }
+}
+
+@keyframes cursor-blink-step {
+  50% {
+    opacity: 0;
+  }
+}

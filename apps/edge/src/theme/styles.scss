@@ -1,0 +1,14 @@
+@use '@servidor/ui-design-tokens' as *;
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background-color: $bg-base;
+  color: $text-primary;
+  font-family: $font-mono;
+}

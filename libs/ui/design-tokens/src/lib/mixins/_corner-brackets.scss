@@ -1,0 +1,60 @@
+@use '../tokens/hud' as *;
+@use '../tokens/colors' as *;
+
+/// Adds tactical-mira style corner brackets (4 absolute pseudo-elements) to a
+/// panel. See Documentacion_UXUI_Retro.docx section 4 (Web screens) — every
+/// card uses these.
+@mixin corner-brackets($color: $accent, $size: $hud-bracket-size, $thickness: $hud-bracket-thickness) {
+  position: relative;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: $size;
+    height: $size;
+    border: 0 solid $color;
+    pointer-events: none;
+  }
+
+  // Top-left
+  &::before {
+    top: 0;
+    left: 0;
+    border-top-width: $thickness;
+    border-left-width: $thickness;
+  }
+
+  // Top-right
+  &::after {
+    top: 0;
+    right: 0;
+    border-top-width: $thickness;
+    border-right-width: $thickness;
+  }
+}
+
+@mixin corner-brackets-bottom($color: $accent, $size: $hud-bracket-size, $thickness: $hud-bracket-thickness) {
+  & > .bracket-bl,
+  & > .bracket-br {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: $size;
+    height: $size;
+    border: 0 solid $color;
+    pointer-events: none;
+  }
+
+  & > .bracket-bl {
+    left: 0;
+    border-bottom-width: $thickness;
+    border-left-width: $thickness;
+  }
+
+  & > .bracket-br {
+    right: 0;
+    border-bottom-width: $thickness;
+    border-right-width: $thickness;
+  }
+}

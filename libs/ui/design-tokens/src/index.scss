@@ -1,0 +1,18 @@
+// =============================================================================
+// Single entry point for SCSS consumers (Angular, Ionic, NestJS static assets).
+// Mirrors src/lib/tokens.ts so TS and SCSS stay in sync.
+//
+// IMPORTANT: this file lives at libs/ui/design-tokens/src/index.scss, while
+// the partials live in src/lib/. Use `lib/...` paths so they resolve.
+// =============================================================================
+
+@forward 'lib/tokens/colors';
+@forward 'lib/tokens/typography';
+@forward 'lib/tokens/spacing';
+@forward 'lib/tokens/grid';
+@forward 'lib/tokens/hud';
+@forward 'lib/tokens/zindex';
+@forward 'lib/mixins/corner-brackets';
+@forward 'lib/mixins/grid-background';
+@forward 'lib/mixins/cursor-blink';
+@forward 'lib/base/reset';

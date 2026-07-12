@@ -1,0 +1,7 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:root {
+  --accent: #{$accent};
+  --bg-base: #{$bg-base};
+  --bg-panel: #{$bg-panel};
+}

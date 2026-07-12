@@ -1,0 +1,64 @@
+# Netlify config — apps/web (Angular 18)
+# https://docs.netlify.com/configure-netlify/netlify-config-file/
+
+[build]
+  base    = "."
+  publish = "dist/apps/web/browser"
+  command = "npx nx build web --configuration=production"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_VERSION  = "10"
+
+# Cache Nx build artifacts between builds
+[build.cache]
+  paths = [
+    ".nx/cache",
+    "node_modules/.cache"
+  ]
+
+# Redirect /api/* and /realtime/* to the NestJS API on Fly.io
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://api.servidorandroid.fly.dev/api/:splat"
+  status = 200
+  force  = true
+  headers = { X-Forwarded-Host = "api.servidorandroid.fly.dev" }
+
+[[redirects]]
+  from   = "/realtime/*"
+  to     = "https://api.servidorandroid.fly.dev/realtime/:splat"
+  status = 200
+  force  = true
+
+# SPA fallback — Angular handles client-side routing
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+[[headers]]
+  for   = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(self), microphone=(self), geolocation=()"
+
+# Long-cache hashed assets produced by Angular CLI
+[[headers]]
+  for   = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[functions]
+  directory = "netlify/functions"
+
+[context.production.environment]
+  NX_CLOUD_DISTRIBUTED_EXECUTION = "false"
+
+[context.staging.environment]
+  NX_CLOUD_DISTRIBUTED_EXECUTION = "false"
+
+[context.deploy-preview.environment]
+  NX_CLOUD_DISTRIBUTED_EXECUTION = "false"

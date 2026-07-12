@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./apps/web" },
+    { "path": "./apps/api" },
+    { "path": "./apps/edge" },
+    { "path": "./libs/shared/types" },
+    { "path": "./libs/shared/dto" },
+    { "path": "./libs/shared/utils" },
+    { "path": "./libs/shared/supabase" },
+    { "path": "./libs/ui/design-tokens" },
+    { "path": "./libs/ui/components" }
+  ]
+}
