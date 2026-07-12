@@ -51,8 +51,7 @@
     "migrate:run": "nx run api:migration:run",
     "migrate:revert": "nx run api:migration:revert",
     "migrate:generate": "nx run api:migration:generate",
-    "prepare": "husky install || true",
-    "tunnel": "cloudflared tunnel --url http://localhost:3000"
+    "prepare": "husky install || true"
   },
   "dependencies": {
     "@angular/animations": "~18.2.0",

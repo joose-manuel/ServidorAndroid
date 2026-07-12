@@ -5,9 +5,10 @@ import { Alert } from '@servidor/shared-types';
 export class AlertsService {
   private alerts: Alert[] = [];
 
-  list(opts: { severity?: Alert['severity']; acknowledged?: boolean }): Alert[] {
+  list(opts: { edgeNodeId?: string; severity?: Alert['severity']; acknowledged?: boolean }): Alert[] {
     return this.alerts.filter(
       (a) =>
+        (!opts.edgeNodeId || a.edgeNodeId === opts.edgeNodeId) &&
         (!opts.severity || a.severity === opts.severity) &&
         (opts.acknowledged === undefined || Boolean(a.acknowledgedAt) === opts.acknowledged),
     );

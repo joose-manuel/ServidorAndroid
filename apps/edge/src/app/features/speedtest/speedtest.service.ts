@@ -3,7 +3,11 @@ import { Capacitor, CapacitorHttp } from '@capacitor/core';
 
 export interface SpeedSample {
   mbps: number;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  pingMs: number | null;
   bytesDownloaded: number;
+  bytesUploaded: number;
   durationMs: number;
   measuredAt: number;
 }
@@ -11,12 +15,16 @@ export interface SpeedSample {
 export interface SpeedConfig {
   intervalSec: number;
   durationSec: number;
-  targetUrl: string;
+  downloadTargetUrl: string;
+  uploadTargetUrl: string;
+  pingTargetUrl: string;
 }
 
-const DEFAULT_TARGET = 'https://speed.cloudflare.com/__down?bytes=';
-const DEFAULT_INTERVAL_SEC = 60;
-const DEFAULT_DURATION_SEC = 8;
+const DEFAULT_DOWNLOAD_TARGET = 'https://speed.cloudflare.com/__down?bytes=';
+const DEFAULT_UPLOAD_TARGET = 'https://httpbin.org/post';
+const DEFAULT_PING_TARGET = 'https://www.google.com/generate_204';
+const DEFAULT_INTERVAL_SEC = 20;
+const DEFAULT_DURATION_SEC = 4;
 
 const STORAGE_KEY = 'edge_speedtest_config';
 
@@ -24,7 +32,9 @@ function defaultConfig(): SpeedConfig {
   return {
     intervalSec: DEFAULT_INTERVAL_SEC,
     durationSec: DEFAULT_DURATION_SEC,
-    targetUrl: DEFAULT_TARGET,
+    downloadTargetUrl: DEFAULT_DOWNLOAD_TARGET,
+    uploadTargetUrl: DEFAULT_UPLOAD_TARGET,
+    pingTargetUrl: DEFAULT_PING_TARGET,
   };
 }
 
@@ -105,11 +115,9 @@ export class SpeedTestService {
       1_000_000,
       Math.round((cfg.durationSec * 5_000_000) / 8),
     );
-    const url = `${cfg.targetUrl}${targetBytes}`;
-    console.log('[speedtest] downloading', targetBytes, 'bytes from', url);
     try {
-      const sample = await this.download(url);
-      console.log('[speedtest] success:', sample.mbps, 'Mbps');
+      const sample = await this.measureSample(targetBytes);
+      console.log('[speedtest] success:', sample.downloadMbps, 'down /', sample.uploadMbps, 'up');
       this._current.set(sample);
       this._history.update((h) => [...h.slice(-119), sample]);
       return sample;
@@ -121,7 +129,84 @@ export class SpeedTestService {
     }
   }
 
-  private async download(url: string): Promise<SpeedSample> {
+  private async measureSample(targetBytes: number): Promise<SpeedSample> {
+    const cfg = this._config();
+    const downloadUrl = `${cfg.downloadTargetUrl}${targetBytes}`;
+    console.log('[speedtest] downloading', targetBytes, 'bytes from', downloadUrl);
+
+    const pingMs = await this.tryMeasurePing(cfg.pingTargetUrl);
+    const download = await this.tryDownload(downloadUrl);
+    const uploadBytes = Math.max(250_000, Math.round(targetBytes / 2));
+    const uploadMbps = await this.tryUpload(cfg.uploadTargetUrl, uploadBytes);
+
+    if (!download && uploadMbps === null && pingMs === null) {
+      throw new Error('speedtest failed: no sample could be collected');
+    }
+
+    return {
+      mbps: download?.mbps ?? 0,
+      downloadMbps: download?.mbps ?? null,
+      uploadMbps,
+      pingMs,
+      bytesDownloaded: download?.bytesDownloaded ?? 0,
+      bytesUploaded: uploadMbps === null ? 0 : uploadBytes,
+      durationMs: download?.durationMs ?? 0,
+      measuredAt: Date.now(),
+    };
+  }
+
+  private async tryMeasurePing(url: string): Promise<number | null> {
+    try {
+      return await this.measurePing(url);
+    } catch (err) {
+      console.warn('[speedtest] ping failed', err);
+      return null;
+    }
+  }
+
+  private async tryDownload(
+    url: string,
+  ): Promise<{ mbps: number; bytesDownloaded: number; durationMs: number } | null> {
+    try {
+      return await this.download(url);
+    } catch (err) {
+      console.warn('[speedtest] download failed', err);
+      return null;
+    }
+  }
+
+  private async tryUpload(url: string, bytes: number): Promise<number | null> {
+    try {
+      return await this.upload(url, bytes);
+    } catch (err) {
+      console.warn('[speedtest] upload failed', err);
+      return null;
+    }
+  }
+
+  private async measurePing(url: string): Promise<number> {
+    const start = Date.now();
+    if (Capacitor.isNativePlatform()) {
+      await CapacitorHttp.get({
+        url,
+        connectTimeout: 4000,
+        readTimeout: 4000,
+        responseType: 'text',
+      });
+    } else {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`ping failed: HTTP ${res.status}`);
+      }
+    }
+    return Math.max(1, Date.now() - start);
+  }
+
+  private async download(url: string): Promise<{
+    mbps: number;
+    bytesDownloaded: number;
+    durationMs: number;
+  }> {
     const start = Date.now();
     const deadline = start + this._config().durationSec * 1000 + 2000;
     let bytes = 0;
@@ -156,6 +241,34 @@ export class SpeedTestService {
 
     const durationMs = Math.max(1, Date.now() - start);
     const mbps = (bytes * 8) / durationMs / 1000;
-    return { mbps: Math.round(mbps * 100) / 100, bytesDownloaded: bytes, durationMs, measuredAt: Date.now() };
+    return { mbps: Math.round(mbps * 100) / 100, bytesDownloaded: bytes, durationMs };
+  }
+
+  private async upload(url: string, bytes: number): Promise<number> {
+    const payload = 'x'.repeat(bytes);
+    const start = Date.now();
+
+    if (Capacitor.isNativePlatform()) {
+      await CapacitorHttp.post({
+        url,
+        headers: { 'content-type': 'text/plain' },
+        data: payload,
+        connectTimeout: 5000,
+        readTimeout: this._config().durationSec * 1000 + 5000,
+        responseType: 'json',
+      });
+    } else {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'text/plain' },
+        body: payload,
+      });
+      if (!res.ok) {
+        throw new Error(`upload failed: HTTP ${res.status}`);
+      }
+    }
+
+    const durationMs = Math.max(1, Date.now() - start);
+    return Math.round((((bytes * 8) / durationMs) / 1000) * 100) / 100;
   }
 }

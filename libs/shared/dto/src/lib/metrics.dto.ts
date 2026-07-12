@@ -12,6 +12,9 @@ export interface ReportMetricsDto {
   packetLossPercent?: number;
   batteryLevelPercent?: number;
   isCharging?: boolean;
+  downloadMbps?: number;
+  uploadMbps?: number;
+  pingMs?: number;
   bytesInPerSec?: number;
   bytesOutPerSec?: number;
   connectedDevicesCount?: number;

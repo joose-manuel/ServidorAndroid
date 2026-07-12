@@ -1,8 +1,21 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { HudPanelComponent } from '@servidor/ui-components';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { ContentService } from '../../core/content/content.service';
+import { PairingStoreService } from '../../core/pairing/pairing-store.service';
+
+interface HealthResponse {
+  status: 'ok';
+  uptime: number;
+  timestamp: string;
+}
+
+interface EdgeStatusResponse {
+  paired: boolean;
+  pairedAt: string | null;
+}
 
 @Component({
   selector: 'app-settings',
@@ -11,32 +24,30 @@ import { ContentService } from '../../core/content/content.service';
   template: `
     <hud-panel [title]="content.t('settings', 'title', 'Ajustes del nodo')">
       <div class="terminal">
-        <div class="terminal__line">&gt; {{ content.t('settings', 'cmd', 'edge-node --config') }}</div>
-        <div class="terminal__line">&gt; {{ content.t('settings', 'chargeLimit', 'Límite de carga: 80% (prolonga vida batería S9)') }}</div>
-        <div class="terminal__line">&gt; {{ content.t('settings', 'scanInterval', 'Escaneo LAN: cada 15 min') }}</div>
-        <div class="terminal__line">&gt; {{ content.t('settings', 'pingInterval', 'Ping latencia: cada 3 min') }}</div>
-        <div class="terminal__line">&gt; {{ content.t('settings', 'alertThreshold', 'Alerta si latencia > 300 ms') }}</div>
+        <div class="terminal__line">&gt; edge-node --config</div>
+        <div class="terminal__line">&gt; API {{ server.apiBaseUrl() }}</div>
+        <div class="terminal__line">&gt; health {{ health()?.status ?? 'sin respuesta' }}</div>
+        <div class="terminal__line">&gt; paired {{ edgeStatus()?.paired ?? false }}</div>
+        <div class="terminal__line">&gt; deviceId {{ pairing.deviceId() ?? 'sin emparejar' }}</div>
       </div>
 
-      <hud-panel [title]="content.t('settings', 'serverPanel', 'Servidor (tunnel)')">
+      <hud-panel [title]="content.t('settings', 'serverPanel', 'Servidor')">
         <div class="server">
           <div class="server__row">
-            <span class="server__label">{{ content.t('settings', 'apiLabel', 'api:') }}</span>
+            <span class="server__label">api:</span>
             <span class="server__url">{{ server.apiBaseUrl() }}</span>
             <button class="server__btn" (click)="toggleEdit()">
-              {{ editing() ? content.t('settings', 'closeBtn', 'cerrar') : content.t('settings', 'changeBtn', 'cambiar') }}
+              {{ editing() ? 'cerrar' : 'cambiar' }}
             </button>
           </div>
 
           <div class="server__status">
             @if (server.discovering()) {
-              <span>{{ content.t('settings', 'discovering', 'descubriendo…') }}</span>
-            } @else if (server.lastDiscovery()?.tunnelActive) {
-              <span class="ok">{{ content.t('settings', 'tunnelActive', 'tunnel activo') }} · {{ server.lastDiscovery()!.tunnelUrl }}</span>
-            } @else if (server.lastDiscovery()) {
-              <span class="warn">{{ content.t('settings', 'tunnelUndetected', 'tunnel no detectado (accesible solo en LAN)') }}</span>
+              <span>descubriendo…</span>
+            } @else if (health()) {
+              <span class="ok">backend en línea</span>
             } @else {
-              <span class="warn">{{ content.t('settings', 'noContact', 'no se pudo contactar el servidor') }}</span>
+              <span class="warn">sin respuesta del backend</span>
             }
           </div>
 
@@ -45,18 +56,14 @@ import { ContentService } from '../../core/content/content.service';
               <input
                 class="server__input"
                 type="text"
-                placeholder="https://xxx.trycloudflare.com/api"
+                placeholder="https://servidorandroid.seenode.app/api"
                 [value]="draft()"
                 (input)="onDraftInput($event)"
               />
               <div class="server__actions">
-                <button class="server__cta" (click)="save()">{{ content.t('settings', 'saveBtn', 'guardar') }}</button>
-                <button class="server__cta server__cta--ghost" (click)="reset()">
-                  {{ content.t('settings', 'defaultBtn', 'default') }}
-                </button>
-                <button class="server__cta server__cta--ghost" (click)="refresh()">
-                  {{ content.t('settings', 'rediscoverBtn', 'redescubrir') }}
-                </button>
+                <button class="server__cta" (click)="save()">guardar</button>
+                <button class="server__cta server__cta--ghost" (click)="reset()">default</button>
+                <button class="server__cta server__cta--ghost" (click)="refresh()">redescubrir</button>
               </div>
             </div>
           }
@@ -73,7 +80,7 @@ import { ContentService } from '../../core/content/content.service';
       border: 1px solid #1c2530;
       margin-bottom: 16px;
     }
-    .terminal__line { line-height: 1.6; }
+    .terminal__line { line-height: 1.7; }
     .server {
       font-family: 'JetBrains Mono', monospace;
       color: #d7dee3;
@@ -140,14 +147,23 @@ import { ContentService } from '../../core/content/content.service';
     }
   `],
 })
-export class SettingsComponent {
+export class SettingsComponent implements OnInit {
+  private readonly http = inject(HttpClient);
   readonly server = inject(ServerConfigService);
   readonly content = inject(ContentService);
+  readonly pairing = inject(PairingStoreService);
+
   readonly editing = signal(false);
   readonly draft = signal('');
+  readonly health = signal<HealthResponse | null>(null);
+  readonly edgeStatus = signal<EdgeStatusResponse | null>(null);
+
+  ngOnInit(): void {
+    void this.refresh();
+  }
 
   toggleEdit(): void {
-    this.editing.update((v) => !v);
+    this.editing.update((value) => !value);
     if (this.editing()) {
       this.draft.set(this.server.apiBaseUrl());
     }
@@ -160,16 +176,40 @@ export class SettingsComponent {
   async save(): Promise<void> {
     await this.server.setApiBaseUrl(this.draft());
     this.editing.set(false);
-    await this.server.autoDiscover();
+    await this.refresh();
   }
 
   async reset(): Promise<void> {
     await this.server.reset();
     this.draft.set(this.server.apiBaseUrl());
-    await this.server.autoDiscover();
+    await this.refresh();
   }
 
   async refresh(): Promise<void> {
     await this.server.autoDiscover();
+    this.loadHealth();
+    this.loadEdgeStatus();
+  }
+
+  private loadHealth(): void {
+    const base = this.server.apiBaseUrl();
+    if (!base) return;
+    this.http.get<HealthResponse>(`${base}/health`).subscribe({
+      next: (health) => this.health.set(health),
+      error: () => this.health.set(null),
+    });
+  }
+
+  private loadEdgeStatus(): void {
+    const base = this.server.apiBaseUrl();
+    const deviceId = this.pairing.deviceId();
+    if (!base || !deviceId) {
+      this.edgeStatus.set(null);
+      return;
+    }
+    this.http.get<EdgeStatusResponse>(`${base}/edge/status/${deviceId}`).subscribe({
+      next: (status) => this.edgeStatus.set(status),
+      error: () => this.edgeStatus.set(null),
+    });
   }
 }

@@ -5,8 +5,6 @@ import { environment } from '../../../environments/environment';
 const STORAGE_KEY = 'edge_api_base_url';
 
 interface InfoResponse {
-  tunnelUrl: string | null;
-  tunnelActive: boolean;
   apiPort: number;
   apiVersion: string;
   timestamp: string;
@@ -21,7 +19,6 @@ export type DiscoveryState = 'idle' | 'checking' | 'ok' | 'fail';
 export interface DiscoveryResult {
   state: DiscoveryState;
   url: string;
-  tunnelUrl: string | null;
   latencyMs: number | null;
   error?: string;
   checkedAt: number;
@@ -89,7 +86,6 @@ export class ServerConfigService {
       return {
         state: 'ok',
         url,
-        tunnelUrl: info?.tunnelUrl ?? null,
         latencyMs,
         checkedAt: Date.now(),
       };
@@ -98,7 +94,6 @@ export class ServerConfigService {
       return {
         state: 'fail',
         url,
-        tunnelUrl: null,
         latencyMs: null,
         error: e?.status
           ? `HTTP ${e.status}`
