@@ -8,6 +8,10 @@ export class AlertsController {
 
   @Get()
   list(@Query() q: AlertsQueryDto) {
-    return this.svc.list({ severity: q.severity, acknowledged: q.acknowledged });
+    return this.svc.list({
+      edgeNodeId: q.edgeNodeId,
+      severity: q.severity,
+      acknowledged: q.acknowledged,
+    });
   }
 }

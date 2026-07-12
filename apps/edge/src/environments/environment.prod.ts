@@ -6,6 +6,6 @@ interface Environment {
 
 export const environment: Environment = {
   production: true,
-  apiBaseUrl: 'https://api.servidorandroid.fly.dev/api',
+  apiBaseUrl: 'https://servidorandroid.seenode.app/api',
   modemDefaultIp: '192.168.1.1',
 };

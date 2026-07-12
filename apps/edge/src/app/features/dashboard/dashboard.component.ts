@@ -180,11 +180,16 @@ import {
             <span class="panel__meta">pico {{ maxValue(telemetry.latencyHistory()) ?? '—' }} ms</span>
           </div>
           @if (telemetry.latencyHistory().length) {
-            <div class="spark spark--accent">
-              @for (point of telemetry.latencyHistory(); track point.capturedAt) {
-                <span class="spark__bar" [style.height.%]="trendPercent(point.value, telemetry.latencyHistory())"></span>
-              }
-            </div>
+            <svg viewBox="0 0 600 160" preserveAspectRatio="none" class="chart-svg">
+              <defs>
+                <linearGradient id="latencyGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#FF7A1A" stop-opacity="0.45" />
+                  <stop offset="100%" stop-color="#FF7A1A" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path [attr.d]="areaPath(telemetry.latencyHistory())" fill="url(#latencyGrad)" />
+              <path [attr.d]="linePath(telemetry.latencyHistory())" fill="none" stroke="#FF7A1A" stroke-width="2" />
+            </svg>
           } @else {
             <div class="spark spark--empty">esperando primeras muestras de latencia…</div>
           }
@@ -204,11 +209,16 @@ import {
             <div>
               <span class="spark-group__label">Descarga</span>
               @if (telemetry.downloadHistory().length) {
-                <div class="spark spark--cyan">
-                  @for (point of telemetry.downloadHistory(); track point.capturedAt) {
-                    <span class="spark__bar" [style.height.%]="trendPercent(point.value, telemetry.downloadHistory())"></span>
-                  }
-                </div>
+                <svg viewBox="0 0 600 160" preserveAspectRatio="none" class="chart-svg">
+                  <defs>
+                    <linearGradient id="downloadGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#41E0D1" stop-opacity="0.45" />
+                      <stop offset="100%" stop-color="#41E0D1" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="areaPath(telemetry.downloadHistory())" fill="url(#downloadGrad)" />
+                  <path [attr.d]="linePath(telemetry.downloadHistory())" fill="none" stroke="#41E0D1" stroke-width="2" />
+                </svg>
               } @else {
                 <div class="spark spark--empty">esperando primeras muestras de descarga…</div>
               }
@@ -216,11 +226,16 @@ import {
             <div>
               <span class="spark-group__label">Subida</span>
               @if (telemetry.uploadHistory().length) {
-                <div class="spark spark--green">
-                  @for (point of telemetry.uploadHistory(); track point.capturedAt) {
-                    <span class="spark__bar" [style.height.%]="trendPercent(point.value, telemetry.uploadHistory())"></span>
-                  }
-                </div>
+                <svg viewBox="0 0 600 160" preserveAspectRatio="none" class="chart-svg">
+                  <defs>
+                    <linearGradient id="uploadGrad" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#39FF88" stop-opacity="0.45" />
+                      <stop offset="100%" stop-color="#39FF88" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path [attr.d]="areaPath(telemetry.uploadHistory())" fill="url(#uploadGrad)" />
+                  <path [attr.d]="linePath(telemetry.uploadHistory())" fill="none" stroke="#39FF88" stroke-width="2" />
+                </svg>
               } @else {
                 <div class="spark spark--empty">esperando primeras muestras de subida…</div>
               }
@@ -237,11 +252,16 @@ import {
             <span class="panel__meta">{{ telemetry.snapshot().batteryPercent }}%</span>
           </div>
           @if (telemetry.batteryHistory().length) {
-            <div class="spark spark--yellow">
-              @for (point of telemetry.batteryHistory(); track point.capturedAt) {
-                <span class="spark__bar" [style.height.%]="absolutePercent(point.value, 100)"></span>
-              }
-            </div>
+            <svg viewBox="0 0 600 160" preserveAspectRatio="none" class="chart-svg">
+              <defs>
+                <linearGradient id="batteryGrad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#FFD23F" stop-opacity="0.45" />
+                  <stop offset="100%" stop-color="#FFD23F" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path [attr.d]="areaPath(telemetry.batteryHistory())" fill="url(#batteryGrad)" />
+              <path [attr.d]="linePath(telemetry.batteryHistory())" fill="none" stroke="#FFD23F" stroke-width="2" />
+            </svg>
           } @else {
             <div class="spark spark--empty">esperando primeras muestras de batería…</div>
           }
@@ -429,6 +449,13 @@ import {
         gap: 4px;
         min-height: 104px;
       }
+      .chart-svg {
+        display: block;
+        width: 100%;
+        height: 160px;
+        background: #05070a;
+        border: 1px solid #1c2530;
+      }
       .spark--empty {
         align-items: center;
         justify-content: center;
@@ -498,6 +525,8 @@ export class DashboardComponent {
   readonly api = inject(ApiHealthService);
   readonly device = inject(DeviceIdentityService);
   readonly pair = inject(PairingStoreService);
+  private readonly chartWidth = 600;
+  private readonly chartHeight = 160;
 
   readonly connectionProfile = computed<ConnectionProfile>(() => this.telemetry.connectionProfile());
   readonly sampledAtLabel = computed(() =>
@@ -521,17 +550,31 @@ export class DashboardComponent {
     this.router.navigateByUrl(path);
   }
 
-  trendPercent(value: number, points: MetricPoint[]): number {
-    if (!points.length) return 24;
+  private yScale(value: number, points: MetricPoint[]): number {
+    if (!points.length) return this.chartHeight - 10;
     const values = points.map((point) => point.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
-    if (max === min) return 56;
-    return Math.min(100, Math.max(12, Math.round(((value - min) / (max - min)) * 88) + 12));
+    if (max === min) return this.chartHeight / 2;
+    return this.chartHeight - (((value - min) / (max - min)) * (this.chartHeight - 20) + 10);
   }
 
-  absolutePercent(value: number, max: number): number {
-    return Math.min(100, Math.max(12, Math.round((value / max) * 100)));
+  private xScale(index: number, total: number): number {
+    if (total <= 1) return 0;
+    return (index / (total - 1)) * (this.chartWidth - 12) + 6;
+  }
+
+  linePath(points: MetricPoint[]): string {
+    if (!points.length) return '';
+    return points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'}${this.xScale(index, points.length)},${this.yScale(point.value, points)}`)
+      .join(' ');
+  }
+
+  areaPath(points: MetricPoint[]): string {
+    if (!points.length) return '';
+    const line = this.linePath(points);
+    return `${line} L${this.xScale(points.length - 1, points.length)},${this.chartHeight} L${this.xScale(0, points.length)},${this.chartHeight} Z`;
   }
 
   maxValue(points: MetricPoint[]): number | null {

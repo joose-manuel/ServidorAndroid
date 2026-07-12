@@ -11,6 +11,11 @@ export class MetricsController {
     return this.svc.current(edgeNodeId);
   }
 
+  @Get('history/:edgeNodeId')
+  history(@Param('edgeNodeId') edgeNodeId: string) {
+    return this.svc.historyFor(edgeNodeId);
+  }
+
   @Post('report')
   report(@Body() dto: ReportMetricsDto) {
     this.svc.ingest(dto.edgeNodeId, dto as unknown as Record<string, unknown>);
