@@ -28,6 +28,7 @@ interface DashboardCache {
   latencyHistory: number[];
   bandwidthHistory: Array<{ down: number; up: number }>;
   batteryHistory: number[];
+  temperatureHistory: Array<number | null>;
   latestCapturedAt: string | null;
 }
 
@@ -56,12 +57,7 @@ interface DashboardCache {
             <div class="metric__sub">
               {{ snapshot()?.battery?.isCharging ? content.t('dashboard', 'charging', 'cargando') : content.t('dashboard', 'onBattery', 'en batería') }}
             </div>
-          </div>
-        </hud-panel>
-        <hud-panel title="Temperatura Edge">
-          <div class="metric">
-            <div class="metric__value">{{ snapshot()?.battery?.temperatureC ?? '—' }}<span class="metric__unit">°C</span></div>
-            <div class="metric__sub">{{ snapshot()?.deviceName ?? 'sin nombre de dispositivo' }}</div>
+            <div class="metric__sub">temperatura {{ snapshot()?.battery?.temperatureC ?? '—' }} °C</div>
           </div>
         </hud-panel>
         <hud-panel [title]="content.t('dashboard', 'download', 'Descarga')">
@@ -84,6 +80,7 @@ interface DashboardCache {
         </hud-panel>
         <hud-panel [title]="content.t('dashboard', 'nodeStatus', 'Estado del nodo')">
           <status-badge [tone]="snapshot() ? 'online' : 'standby'" />
+          <div class="metric__sub">equipo {{ snapshot()?.deviceName ?? 'sin nombre' }}</div>
           <div class="metric__sub">{{ lastError() ?? 'telemetría en vivo desde la API' }}</div>
           <div class="metric__sub">{{ snapshot()?.deviceModel ?? 'modelo sin detectar' }}</div>
         </hud-panel>
@@ -114,6 +111,15 @@ interface DashboardCache {
               <div class="state">cargando histórico…</div>
             } @else {
               <canvas #batteryChart></canvas>
+            }
+          </div>
+        </hud-panel>
+        <hud-panel title="Temperatura">
+          <div class="chart-wrap">
+            @if (loadingHistory()) {
+              <div class="state">cargando temperatura…</div>
+            } @else {
+              <canvas #temperatureChart></canvas>
             }
           </div>
         </hud-panel>
@@ -181,14 +187,17 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('latencyChart') latencyCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('bandwidthChart') bandwidthCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('batteryChart') batteryCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('temperatureChart') temperatureCanvas?: ElementRef<HTMLCanvasElement>;
 
   private latencyChart?: Chart;
   private bandwidthChart?: Chart;
   private batteryChart?: Chart;
+  private temperatureChart?: Chart;
 
   private latencyHistory: number[] = [];
   private bandwidthHistory: Array<{ down: number; up: number }> = [];
   private batteryHistory: number[] = [];
+  private temperatureHistory: Array<number | null> = [];
   private timeLabels: string[] = [];
 
   ngOnInit(): void {
@@ -211,15 +220,16 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const deviceId = this.pairing.deviceId();
     if (!base || !deviceId) {
       this.lastHistoryDeviceId = null;
+      this.clearDashboardState();
       this.loadingHistory.set(false);
       return;
     }
 
     this.lastHistoryDeviceId = deviceId;
-    this.loadingHistory.set(true);
+    this.loadingHistory.set(!this.hasCachedState(deviceId));
     this.lastError.set(null);
     this.http
-      .get<EdgeMetricsSnapshot[]>(`${base}/metrics/history/${deviceId}`)
+      .get<EdgeMetricsSnapshot[]>(`${base}/metrics/history/${deviceId}?_=${Date.now()}`)
       .subscribe({
         next: (history) => {
           this.replaceHistory(history);
@@ -249,11 +259,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.http
-      .get<EdgeMetricsSnapshot | null>(`${base}/metrics/current/${deviceId}`)
+      .get<EdgeMetricsSnapshot | null>(`${base}/metrics/current/${deviceId}?_=${Date.now()}`)
       .subscribe({
         next: (snapshot) => {
           if (!snapshot) {
-            this.snapshot.set(null);
+            this.clearDashboardState();
             this.lastError.set('el backend aún no recibe muestras del edge');
             return;
           }
@@ -263,7 +273,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           this.persistCache();
         },
         error: () => {
-          this.snapshot.set(null);
+          this.clearDashboardState();
           this.lastError.set('no se pudo consultar /metrics/current');
         },
       });
@@ -277,6 +287,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       up: item.speedtest?.uploadMbps ?? 0,
     }));
     this.batteryHistory = history.map((item) => item.battery?.levelPercent ?? 0);
+    this.temperatureHistory = history.map((item) => item.battery?.temperatureC ?? null);
   }
 
   private pushData(snapshot: EdgeMetricsSnapshot): void {
@@ -293,6 +304,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       },
     ].slice(-30);
     this.batteryHistory = [...this.batteryHistory, snapshot.battery?.levelPercent ?? 0].slice(-30);
+    this.temperatureHistory = [...this.temperatureHistory, snapshot.battery?.temperatureC ?? null].slice(-30);
     this.updateCharts();
   }
 
@@ -306,7 +318,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     return new Promise((resolve) => {
-      this.http.get(`${base}/health`).subscribe({
+      this.http.get(`${base}/health?_=${Date.now()}`).subscribe({
         next: () => resolve(),
         error: () => {
           this.clearDashboardCache();
@@ -338,6 +350,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.latencyHistory = cache.latencyHistory ?? [];
       this.bandwidthHistory = cache.bandwidthHistory ?? [];
       this.batteryHistory = cache.batteryHistory ?? [];
+      this.temperatureHistory = cache.temperatureHistory ?? [];
       this.latestCapturedAt = cache.latestCapturedAt ?? null;
       this.lastHistoryDeviceId = deviceId;
       this.loadingHistory.set(false);
@@ -360,6 +373,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       latencyHistory: this.latencyHistory,
       bandwidthHistory: this.bandwidthHistory,
       batteryHistory: this.batteryHistory,
+      temperatureHistory: this.temperatureHistory,
       latestCapturedAt: this.latestCapturedAt,
     };
     localStorage.setItem(this.cacheKey(deviceId), JSON.stringify(cache));
@@ -386,7 +400,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.latencyHistory = [];
     this.bandwidthHistory = [];
     this.batteryHistory = [];
+    this.temperatureHistory = [];
     this.updateCharts();
+  }
+
+  private hasCachedState(deviceId: string): boolean {
+    return !!localStorage.getItem(this.cacheKey(deviceId));
   }
 
   private initCharts(): void {
@@ -406,6 +425,19 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       scales: {
         x: { ticks: { color: '#3a4350', maxTicksLimit: 6 }, grid: { color: '#1c2530' } },
         y: { ticks: { color: '#3a4350' }, grid: { color: '#1c2530' } },
+      },
+    };
+
+    const batteryChartOptions = {
+      ...chartOptions,
+      scales: {
+        x: { ticks: { color: '#3a4350', maxTicksLimit: 6 }, grid: { color: '#1c2530' } },
+        y: {
+          min: 0,
+          max: 100,
+          ticks: { color: '#3a4350', stepSize: 20 },
+          grid: { color: '#1c2530' },
+        },
       },
     };
 
@@ -477,6 +509,27 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             },
           ],
         },
+        options: batteryChartOptions as never,
+      });
+    }
+
+    if (this.temperatureCanvas && !this.temperatureChart) {
+      this.temperatureChart = new Chart(this.temperatureCanvas.nativeElement, {
+        type: 'line',
+        data: {
+          labels: this.timeLabels,
+          datasets: [
+            {
+              label: '°C',
+              data: this.temperatureHistory,
+              borderColor: '#9F7AEA',
+              backgroundColor: 'rgba(159,122,234,0.12)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2,
+            },
+          ],
+        },
         options: chartOptions as never,
       });
     }
@@ -500,6 +553,11 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       this.batteryChart.data.datasets[0].data = this.batteryHistory;
       this.batteryChart.update('none');
     }
+    if (this.temperatureChart) {
+      this.temperatureChart.data.labels = this.timeLabels;
+      this.temperatureChart.data.datasets[0].data = this.temperatureHistory;
+      this.temperatureChart.update('none');
+    }
   }
 
   private formatTime(value: string): string {
@@ -516,5 +574,6 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     this.latencyChart?.destroy();
     this.bandwidthChart?.destroy();
     this.batteryChart?.destroy();
+    this.temperatureChart?.destroy();
   }
 }

@@ -13,6 +13,9 @@ export interface ReportMetricsDto {
   batteryLevelPercent?: number;
   isCharging?: boolean;
   temperatureC?: number;
+  speedIntervalSec?: number;
+  speedDurationSec?: number;
+  scheduledTimeLocal?: string | null;
   downloadMbps?: number;
   uploadMbps?: number;
   pingMs?: number;

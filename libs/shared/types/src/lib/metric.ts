@@ -49,6 +49,11 @@ export interface EdgeMetricsSnapshot {
   edgeNodeId: string;
   deviceName?: string;
   deviceModel?: string;
+  measurementConfig?: {
+    intervalSec?: number;
+    durationSec?: number;
+    scheduledTimeLocal?: string | null;
+  };
   latency?: LatencyMetric;
   bandwidth?: BandwidthSample;
   battery?: BatteryMetric;

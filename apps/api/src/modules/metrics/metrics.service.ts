@@ -69,6 +69,14 @@ export class MetricsService {
       edgeNodeId: raw.edgeNodeId ?? edgeNodeId,
       deviceName: typeof raw['deviceName'] === 'string' ? raw['deviceName'] : undefined,
       deviceModel: typeof raw['deviceModel'] === 'string' ? raw['deviceModel'] : undefined,
+      measurementConfig: {
+        intervalSec: typeof raw['speedIntervalSec'] === 'number' ? raw['speedIntervalSec'] : undefined,
+        durationSec: typeof raw['speedDurationSec'] === 'number' ? raw['speedDurationSec'] : undefined,
+        scheduledTimeLocal:
+          typeof raw['scheduledTimeLocal'] === 'string' || raw['scheduledTimeLocal'] === null
+            ? (raw['scheduledTimeLocal'] as string | null)
+            : undefined,
+      },
       capturedAt,
       connectedDevicesCount: raw.connectedDevicesCount ?? 0,
       latency: {
