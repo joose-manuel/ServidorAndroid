@@ -224,6 +224,22 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
     });
   }
 
+  private async acquireMicStream(): Promise<MediaStream> {
+    // Constraints simples (sin echoCancellation/noiseSuppression) para
+    // evitar que el WebView Android descarte el audio silenciosamente.
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false,
+      });
+      console.log('[intercom] mic acquired, audioTracks=', stream.getAudioTracks().length);
+      return stream;
+    } catch (err) {
+      console.warn('[intercom] mic acquire failed', err);
+      throw err;
+    }
+  }
+
   private tryAutoStart(): void {
     const request = this.signaling.pendingRequest();
     if (!request || request.mode !== 'intercom' || !this.viewReady()) {
@@ -296,6 +312,7 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
     turn?: { urls: string[]; username: string; credential: string; ttlSeconds: number },
   ): Promise<void> {
     console.log('[intercom] startRemoteSession called', sessionId, { hasTurn: !!turn });
+    fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"intercom-debug",runId:"post-fix",hypothesisId:"I",location:"edge/intercom.component.ts:startRemoteSession:entry",msg:"[DEBUG] intercom start",data:{sessionId,hasTurn:!!turn,nativePlatform:Capacitor.isNativePlatform()},ts:Date.now()})}).catch(()=>{});
     this.status.set('awaiting-answer');
     this.state.set('connecting');
 
@@ -304,16 +321,14 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
 
       if (Capacitor.isNativePlatform()) {
         const permissionResult = await DeviceRuntime.ensureMicrophonePermission();
-        if (!permissionResult?.granted) {
-          throw new Error('microphone permission not granted');
-        }
+        console.log('[intercom] mic permission result', permissionResult);
+        // No bloqueamos: si no hay mic, el intercom sigue funcionando para
+        // escuchar a la web; el PTT simplemente no tendrá stream local.
       }
 
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-        video: false,
-      });
+      this.stream = await this.acquireMicStream();
       console.log('[intercom] getUserMedia ok', this.stream.getAudioTracks().length, 'audio tracks');
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"intercom-debug",runId:"post-fix",hypothesisId:"I",location:"edge/intercom.component.ts:getUserMedia:ok",msg:"[DEBUG] intercom mic acquired",data:{sessionId,audioTracks:this.stream.getAudioTracks().length},ts:Date.now()})}).catch(()=>{});
       this.attachOutputAnalyser();
       this.activeSessionId.set(sessionId);
       this.status.set('awaiting-answer');
@@ -329,6 +344,10 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
             ]
           : undefined,
       });
+
+      // Transceiver recvonly para que la web pueda mandarnos PTT (audio) incluso
+      // si el getUserMedia local no devolvió tracks.
+      this.peer.addTransceiver('audio', { direction: 'recvonly' });
 
       this.signaling.joinSession({ sessionId, role: 'node' });
 
@@ -364,11 +383,12 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
         }
       };
 
-      this.stream.getAudioTracks().forEach((track) => this.peer?.addTrack(track, this.stream!));
+      this.stream!.getAudioTracks().forEach((track) => this.peer?.addTrack(track, this.stream!));
 
       const offer = await this.peer.createOffer();
       await this.peer.setLocalDescription(offer);
       console.log('[intercom] offer created', offer.type, !!offer.sdp);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"intercom-debug",runId:"post-fix",hypothesisId:"I",location:"edge/intercom.component.ts:offer-created",msg:"[DEBUG] intercom offer created",data:{sessionId,offerType:offer.type,hasSdp:!!offer.sdp},ts:Date.now()})}).catch(()=>{});
       this.signaling.sendOffer({
         sessionId,
         sdp: { type: offer.type, sdp: offer.sdp ?? undefined },
@@ -377,6 +397,7 @@ export class IntercomComponent implements AfterViewInit, OnInit, OnDestroy {
       this.pendingSessionId.set(sessionId);
     } catch (err) {
       console.error('[intercom] remote session failed', err);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"intercom-debug",runId:"post-fix",hypothesisId:"I",location:"edge/intercom.component.ts:catch",msg:"[DEBUG] intercom remote session failed",data:{sessionId,errorName:err instanceof Error ? err.name : typeof err,errorMessage:err instanceof Error ? err.message : String(err)},ts:Date.now()})}).catch(()=>{});
       this.status.set('error');
       this.state.set('error');
       await this.stop();

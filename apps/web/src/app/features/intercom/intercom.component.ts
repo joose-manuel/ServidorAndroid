@@ -79,7 +79,7 @@ interface IntercomSessionResponse {
               (mouseleave)="stopTalking()"
               (touchstart)="startTalking()"
               (touchend)="stopTalking()"
-              [disabled]="state() !== 'live'"
+              [disabled]="state() !== 'live' && state() !== 'connecting'"
             >
               {{ ptt() ? 'hablando…' : 'mantener para hablar' }}
             </button>
@@ -305,14 +305,16 @@ export class IntercomComponent implements OnDestroy {
   }
 
   async startTalking(): Promise<void> {
-    if (this.ptt() || this.state() !== 'live') return;
+    if (this.ptt()) return;
+    if (this.state() !== 'live' && this.state() !== 'connecting') return;
+    if (!this.peer) return;
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
         video: false,
       });
       const track = this.micStream.getAudioTracks()[0];
-      if (track && this.peer) {
+      if (track) {
         // Reemplaza el transceiver de audio sendonly o añade un track nuevo
         const senders = this.peer.getSenders();
         const existingAudio = senders.find((s) => s.track?.kind === 'audio');

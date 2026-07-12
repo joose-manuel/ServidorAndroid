@@ -218,6 +218,30 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
     });
   }
 
+  private async acquireCameraStream(sessionId: string): Promise<MediaStream> {
+    // 1) Intento con video + audio (constraints simples, sin echoCancellation/noiseSuppression
+    //    que algunos WebViews Android descartan silenciosamente).
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'user' } },
+        audio: true,
+      });
+      const audioTracks = stream.getAudioTracks().length;
+      console.log('[camera] getUserMedia v+a ok, audioTracks=', audioTracks);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:acquireCameraStream:va",msg:"[DEBUG] v+a stream acquired",data:{sessionId,audioTracks,videoTracks:stream.getVideoTracks().length},ts:Date.now()})}).catch(()=>{});
+      return stream;
+    } catch (err) {
+      console.warn('[camera] v+a failed, falling back to video-only', err);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:acquireCameraStream:va-fail",msg:"[DEBUG] v+a failed, fallback to video",data:{sessionId,errorName:err instanceof Error ? err.name : typeof err,errorMessage:err instanceof Error ? err.message : String(err)},ts:Date.now()})}).catch(()=>{});
+    }
+    // 2) Fallback: solo video (la cámara sigue funcionando aunque el mic falle).
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'user' } },
+    });
+    console.log('[camera] getUserMedia video-only ok, videoTracks=', stream.getVideoTracks().length);
+    return stream;
+  }
+
   ngAfterViewInit(): void {
     this.viewReady.set(true);
     this.viewReadyForTemplate.set(true);
@@ -297,19 +321,17 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
           throw new Error('camera permission not granted');
         }
         const micResult = await DeviceRuntime.ensureMicrophonePermission();
-        if (!micResult?.granted) {
-          throw new Error('microphone permission not granted');
-        }
+        fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:mic-permission",msg:"[DEBUG] mic permission result",data:{sessionId,granted:!!micResult?.granted,result:micResult},ts:Date.now()})}).catch(()=>{});
+        // No bloqueamos si el mic no se concede: caemos a video-only.
       }
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'user' } },
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      // Intentar primero con audio. Si falla (NotAllowedError típico cuando
+      // el WebView no concede el mic), reintentamos solo video.
+      this.stream = await this.acquireCameraStream(sessionId);
       // #region debug-point B:getusermedia-ok
       console.log('[camera] getUserMedia ok', this.stream.getTracks().length, 'tracks');
       fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:getUserMedia:ok",msg:"[DEBUG] getUserMedia resolved",data:{sessionId,trackCount:this.stream.getTracks().length},ts:Date.now()})}).catch(()=>{});
       // #endregion
-      this.videoRef.nativeElement.srcObject = this.stream;
+      this.videoRef.nativeElement.srcObject = this.stream!;
       this.active.set(true);
       this.activeSessionId.set(sessionId);
       this.status.set('awaiting-answer');
@@ -325,6 +347,10 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
             ]
           : undefined,
       });
+
+      // Transceiver recvonly para que la web pueda mandarnos PTT (audio) incluso
+      // si el getUserMedia local solo devolvió video.
+      this.peer.addTransceiver('audio', { direction: 'recvonly' });
 
       this.signaling.joinSession({ sessionId, role: 'node' });
 
@@ -363,7 +389,7 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
         }
       };
 
-      this.stream.getTracks().forEach((track) => this.peer?.addTrack(track, this.stream!));
+      this.stream!.getTracks().forEach((track) => this.peer?.addTrack(track, this.stream!));
 
       const offer = await this.peer.createOffer();
       await this.peer.setLocalDescription(offer);

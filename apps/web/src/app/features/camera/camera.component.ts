@@ -66,7 +66,11 @@ interface CameraSessionResponse {
       <audio #remoteAudio autoplay class="viewer__audio"></audio>
 
       <div class="vu">
-        <div class="vu__label">mic</div>
+        <div class="vu__label">nodo</div>
+        <div class="vu__bar">
+          <div class="vu__fill vu__fill--remote" [style.width.%]="remoteLevel()"></div>
+        </div>
+        <div class="vu__label vu__label--right">mic</div>
         <div class="vu__bar">
           <div class="vu__fill" [style.width.%]="inputLevel()"></div>
         </div>
@@ -85,7 +89,7 @@ interface CameraSessionResponse {
             (mouseleave)="stopTalking()"
             (touchstart)="startTalking()"
             (touchend)="stopTalking()"
-            [disabled]="state() !== 'live'"
+            [disabled]="state() !== 'live' && state() !== 'connecting'"
           >
             {{ ptt() ? 'hablando…' : 'mantener para hablar' }}
           </button>
@@ -97,7 +101,10 @@ interface CameraSessionResponse {
   styles: [`
     .viewer {
       position: relative;
-      aspect-ratio: 16 / 9;
+      aspect-ratio: 9 / 16;
+      max-height: 60vh;
+      margin-left: auto;
+      margin-right: auto;
       background: #05070a;
       border: 1px solid #1c2530;
       display: flex;
@@ -113,7 +120,7 @@ interface CameraSessionResponse {
       inset: 0;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       opacity: 0;
       transition: opacity 240ms ease;
       background: #000;
@@ -192,7 +199,8 @@ interface CameraSessionResponse {
     @keyframes pulse { 50% { opacity: 0.3; } }
 
     .vu {
-      display: flex;
+      display: grid;
+      grid-template-columns: 48px 1fr 48px 1fr;
       align-items: center;
       gap: 8px;
       font-family: 'JetBrains Mono', monospace;
@@ -202,8 +210,7 @@ interface CameraSessionResponse {
       margin-bottom: 12px;
     }
     .vu__bar {
-      flex: 1;
-      height: 4px;
+      height: 6px;
       background: #0a1218;
       border: 1px solid #1c2530;
       overflow: hidden;
@@ -214,6 +221,10 @@ interface CameraSessionResponse {
       transition: width 80ms linear;
       width: 0;
     }
+    .vu__fill--remote {
+      background: linear-gradient(to right, #39ff88, #5ce17a);
+    }
+    .vu__label--right { text-align: right; }
 
     .actions { display: flex; gap: 8px; }
     .actions__ptt {
@@ -251,6 +262,7 @@ export class CameraComponent implements OnDestroy {
   readonly errorMessage = signal<string | null>(null);
   readonly ptt = signal(false);
   readonly remoteSpeaking = signal(false);
+  readonly remoteLevel = signal(0);
   readonly inputLevel = signal(0);
 
   private peer?: RTCPeerConnection;
@@ -493,6 +505,7 @@ export class CameraComponent implements OnDestroy {
         let sum = 0;
         for (let i = 0; i < data.length; i++) sum += data[i];
         const avg = sum / data.length;
+        this.remoteLevel.set(Math.min(100, (avg / 128) * 100));
         const isSpeaking = avg > 6;
         if (isSpeaking !== this.remoteSpeaking()) {
           this.remoteSpeaking.set(isSpeaking);
@@ -537,6 +550,7 @@ export class CameraComponent implements OnDestroy {
     this.audioCtx = undefined;
     this.audioAnalyser = undefined;
     this.remoteSpeaking.set(false);
+    this.remoteLevel.set(0);
     this.inputLevel.set(0);
     setTimeout(() => {
       if (this.state() === 'ended' || this.state() === 'error') {
