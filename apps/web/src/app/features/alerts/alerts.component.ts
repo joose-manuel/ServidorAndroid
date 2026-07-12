@@ -1,17 +1,18 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HudPanelComponent } from '@servidor/ui-components';
+import { ContentService } from '../../core/content/content.service';
 
 @Component({
   selector: 'app-alerts',
   standalone: true,
   imports: [CommonModule, HudPanelComponent],
   template: `
-    <hud-panel title="Centro de alertas">
+    <hud-panel [title]="content.t('alerts', 'title', 'Centro de alertas')">
       <div class="terminal">
-        <div class="terminal__line">&gt; edge-node --alerts</div>
-        <div class="terminal__line">&gt; Alertas de latencia, dispositivos nuevos, batería baja</div>
-        <div class="terminal__line">&gt; Notificaciones push vía FCM al edge node</div>
+        <div class="terminal__line">&gt; {{ content.t('alerts', 'cmd', 'edge-node --alerts') }}</div>
+        <div class="terminal__line">&gt; {{ content.t('alerts', 'desc1', 'Alertas de latencia, dispositivos nuevos, batería baja') }}</div>
+        <div class="terminal__line">&gt; {{ content.t('alerts', 'desc2', 'Notificaciones push vía FCM al edge node') }}</div>
       </div>
     </hud-panel>
   `,
@@ -26,4 +27,6 @@ import { HudPanelComponent } from '@servidor/ui-components';
     .terminal__line { line-height: 1.6; }
   `],
 })
-export class AlertsComponent {}
+export class AlertsComponent {
+  readonly content = inject(ContentService);
+}

@@ -1,22 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HudPanelComponent, StatusBadgeComponent, CmdButtonComponent } from '@servidor/ui-components';
+import { ContentService } from '../../core/content/content.service';
 
 @Component({
   selector: 'app-camera',
   standalone: true,
   imports: [CommonModule, HudPanelComponent, StatusBadgeComponent, CmdButtonComponent],
   template: `
-    <hud-panel title="Cámara remota">
+    <hud-panel [title]="content.t('camera', 'title', 'Cámara remota')">
       <div class="viewer">
         <div class="viewer__placeholder">
           <span class="viewer__icon">📷</span>
-          <span>Transmisión en vivo desde el edge node</span>
-          <span class="viewer__hint">WebRTC con TURN/STUN — requiere sesión activa</span>
+          <span>{{ content.t('camera', 'live', 'Transmisión en vivo desde el edge node') }}</span>
+          <span class="viewer__hint">{{ content.t('camera', 'hint', 'WebRTC con TURN/STUN — requiere sesión activa') }}</span>
         </div>
       </div>
       <div class="actions">
-        <cmd-button primary (cmdClick)="openCamera()">Iniciar cámara</cmd-button>
+        <cmd-button primary (cmdClick)="openCamera()">{{ content.t('camera', 'startBtn', 'Iniciar cámara') }}</cmd-button>
       </div>
     </hud-panel>
   `,
@@ -45,6 +46,8 @@ import { HudPanelComponent, StatusBadgeComponent, CmdButtonComponent } from '@se
   `],
 })
 export class CameraComponent {
+  readonly content = inject(ContentService);
+
   openCamera(): void {
     // Sprint 5 — WebRTC con TURN credentials desde POST /api/camera/session
   }
