@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject } from '@angular/core';
+import { Component, OnInit, computed, effect, inject } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
@@ -6,6 +6,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ApiHealthService } from './core/api/api-health.service';
 import { MetricsReporterService } from './core/metrics/metrics-reporter.service';
 import { NetworkStatusService } from './core/network/network-status.service';
+import { PairingStoreService } from './core/pairing/pairing-store.service';
 import { EdgeTelemetryService } from './core/telemetry/edge-telemetry.service';
 
 interface NavItem {
@@ -181,6 +182,7 @@ interface NavItem {
 export class AppComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly metrics = inject(MetricsReporterService);
+  private readonly pair = inject(PairingStoreService);
   readonly api = inject(ApiHealthService);
   readonly net = inject(NetworkStatusService);
   readonly telemetry = inject(EdgeTelemetryService);
@@ -211,6 +213,14 @@ export class AppComponent implements OnInit {
     { label: 'Módem', path: '/modem' },
     { label: 'Ajustes', path: '/settings' },
   ];
+
+  constructor() {
+    effect(() => {
+      if (!this.pair.isPaired() && this.currentPath() !== '/boot') {
+        void this.router.navigateByUrl('/boot');
+      }
+    });
+  }
 
   ngOnInit(): void {
     this.telemetry.start();

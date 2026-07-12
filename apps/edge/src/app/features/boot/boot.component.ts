@@ -353,8 +353,8 @@ export class BootComponent implements OnDestroy {
     this.router.navigate(['/dashboard']);
   }
 
-  forgetPairing(): void {
-    this.pairStore.clear();
+  async forgetPairing(): Promise<void> {
+    await this.pairStore.unpairFromServer(this.edgeNodeId());
     this.paired.set(false);
   }
 }

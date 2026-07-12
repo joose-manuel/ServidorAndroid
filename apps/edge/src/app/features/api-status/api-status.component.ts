@@ -1,5 +1,6 @@
 import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { ApiHealthService } from '../../core/api/api-health.service';
 import { ServerConfigService } from '../../core/config/server-config.service';
 
@@ -43,6 +44,7 @@ import { ServerConfigService } from '../../core/config/server-config.service';
       <div class="api__actions">
         <button class="api__action" (click)="refresh()">verificar ahora</button>
         <button class="api__action api__action--ghost" (click)="useDeployedApi()">usar API desplegada</button>
+        <button class="api__action api__action--dashboard" (click)="goToDashboard()">ir al dashboard</button>
       </div>
     </div>
   `,
@@ -129,12 +131,16 @@ import { ServerConfigService } from '../../core/config/server-config.service';
       }
       .api__actions {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 8px;
       }
       .api__action--ghost {
         border-color: #1c2530;
         color: #d7dee3;
+      }
+      .api__action--dashboard {
+        background: #ff7a1a;
+        color: #05070a;
       }
     `,
   ],
@@ -143,6 +149,7 @@ export class ApiStatusComponent {
   readonly api = inject(ApiHealthService);
   readonly server = inject(ServerConfigService);
   readonly snapshot = this.api.snapshot;
+  private readonly router = inject(Router);
 
   readonly badgeClass = computed(() => {
     const state = this.snapshot().state;
@@ -171,5 +178,9 @@ export class ApiStatusComponent {
   async useDeployedApi(): Promise<void> {
     await this.server.reset();
     void this.api.checkNow();
+  }
+
+  goToDashboard(): void {
+    void this.router.navigate(['/dashboard']);
   }
 }
