@@ -1,0 +1,41 @@
+{
+  "root": true,
+  "ignorePatterns": ["**/*"],
+  "plugins": ["@nx"],
+  "rules": {
+    "@nx/enforce-module-boundaries": [
+      "error",
+      {
+        "enforceBuildableLibDependency": true,
+        "allowCircularSelfDependency": false,
+        "allow": [],
+        "depConstraints": [
+          {
+            "sourceTag": "*",
+            "onlyDependOnLibsWithTags": ["*"]
+          },
+          {
+            "sourceTag": "scope:web",
+            "onlyDependOnLibsWithTags": ["scope:shared", "scope:ui", "scope:web"]
+          },
+          {
+            "sourceTag": "scope:api",
+            "onlyDependOnLibsWithTags": ["scope:shared", "scope:api"]
+          },
+          {
+            "sourceTag": "scope:edge",
+            "onlyDependOnLibsWithTags": ["scope:shared", "scope:ui", "scope:edge"]
+          },
+          {
+            "sourceTag": "scope:ui",
+            "onlyDependOnLibsWithTags": ["scope:shared", "scope:ui"]
+          },
+          {
+            "sourceTag": "scope:shared",
+            "onlyDependOnLibsWithTags": ["scope:shared"]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:host {
+  display: block;
+}
+
+.hud-panel {
+  @include grid-background;
+  @include corner-brackets;
+  position: relative;
+  padding: $panel-padding;
+  background-color: $bg-panel;
+  border: $panel-border-width solid $border;
+  color: $text-primary;
+  font-family: $font-mono;
+  z-index: $z-panel;
+}
+
+.hud-panel__header {
+  display: flex;
+  align-items: baseline;
+  gap: $space-sm;
+  margin-bottom: $space-md;
+  padding-bottom: $space-sm;
+  border-bottom: 1px solid $border;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: $font-size-sm;
+}
+
+.hud-panel__kicker {
+  color: $accent;
+}
+
+.hud-panel__title {
+  color: $text-primary;
+}
+
+.hud-panel__body {
+  position: relative;
+  z-index: 1;
+}

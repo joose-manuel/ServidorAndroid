@@ -1,0 +1,45 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: $z-corner;
+}
+
+.brackets {
+  position: absolute;
+  inset: 0;
+}
+
+.bracket {
+  position: absolute;
+  width: $hud-bracket-size;
+  height: $hud-bracket-size;
+  border: 0 solid var(--accent);
+}
+
+.tl {
+  top: 0;
+  left: 0;
+  border-top-width: $hud-bracket-thickness;
+  border-left-width: $hud-bracket-thickness;
+}
+.tr {
+  top: 0;
+  right: 0;
+  border-top-width: $hud-bracket-thickness;
+  border-right-width: $hud-bracket-thickness;
+}
+.bl {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: $hud-bracket-thickness;
+  border-left-width: $hud-bracket-thickness;
+}
+.br {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: $hud-bracket-thickness;
+  border-right-width: $hud-bracket-thickness;
+}

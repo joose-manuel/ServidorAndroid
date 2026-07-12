@@ -1,0 +1,56 @@
+# Keep dependencies up to date. Grouped PRs to reduce noise.
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'America/Mexico_City'
+    groups:
+      angular:
+        patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - '@angular-eslint/*'
+      nx:
+        patterns:
+          - '@nx/*'
+          - 'nx'
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+      capacitor:
+        patterns:
+          - '@capacitor/*'
+      testing:
+        patterns:
+          - 'jest*'
+          - '@types/jest'
+          - '@nx/jest'
+          - 'ts-jest'
+          - 'jest-preset-angular'
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - 'dependencies'
+      - 'automated'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'America/Mexico_City'
+    groups:
+      actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: 'ci(actions)'
+    labels:
+      - 'ci'
+      - 'automated'

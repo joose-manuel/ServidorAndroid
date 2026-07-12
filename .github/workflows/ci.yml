@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# Cancel in-progress runs on the same branch / PR
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_DISTRIBUTED_EXECUTION: false
+  NX_VERBOSE_LOGGING: false
+
+jobs:
+  affected:
+    name: Lint / Test / Build (affected)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Restore Nx cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-cache-${{ runner.os }}-${{ hashFiles('nx.json', 'package-lock.json', 'tsconfig.base.json') }}
+          restore-keys: |
+            nx-cache-${{ runner.os }}-
+
+      - name: Run Nx affected lint
+        run: npx nx affected -t lint --parallel=2 --max-warnings=0
+
+      - name: Run Nx affected test
+        run: npx nx affected -t test --parallel=2 --coverage
+
+      - name: Run Nx affected build
+        run: npx nx affected -t build --parallel=2
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: false

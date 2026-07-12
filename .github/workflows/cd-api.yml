@@ -1,0 +1,143 @@
+name: CD API (Fly.io)
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+concurrency:
+  group: cd-api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    name: Build & push Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Restore Nx cache
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: nx-cache-api-${{ runner.os }}-${{ hashFiles('nx.json', 'package-lock.json', 'tsconfig.base.json') }}
+          restore-keys: |
+            nx-cache-api-${{ runner.os }}-
+
+      - name: Build NestJS app (dist only)
+        run: npx nx build api --configuration=production
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/servidorandroid-api
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/api.Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    timeout-minutes: 15
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+
+    steps:
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy (staging)
+        if: github.ref == 'refs/heads/develop'
+        uses: superfly/flyctl-actions/deploy@master
+        with:
+          args: >
+            deploy
+            --app servidorandroid-api-staging
+            --config fly.toml
+            --image ghcr.io/${{ github.repository_owner }}/servidorandroid-api:${{ github.sha }}
+            --region mia
+            --strategy canary
+          env:
+            FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+
+      - name: Deploy (production)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: superfly/flyctl-actions/deploy@master
+        with:
+          args: >
+            deploy
+            --app servidorandroid-api
+            --config fly.toml
+            --image ghcr.io/${{ github.repository_owner }}/servidorandroid-api:${{ github.sha }}
+            --region mia
+            --strategy canary
+          env:
+            FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+
+      - name: Run migrations (production)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        uses: superfly/flyctl-actions/run@master
+        with:
+          args: >
+            ssh console
+            --app servidorandroid-api
+            --command "npx nx run api:migration:run --configuration=production"
+          env:
+            FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+
+      - name: Smoke test
+        if: always()
+        run: |
+          BASE_URL="${{ github.ref == 'refs/heads/main' && 'https://api.servidorandroid.fly.dev' || 'https://api-staging.servidorandroid.fly.dev' }}"
+          for i in {1..10}; do
+            sleep 10
+            if curl -fsS "$BASE_URL/api/health"; then
+              echo "Health OK at $BASE_URL/api/health"
+              exit 0
+            fi
+          done
+          echo "Smoke test failed"
+          exit 1

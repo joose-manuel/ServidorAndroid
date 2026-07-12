@@ -1,0 +1,50 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:host {
+  display: inline-flex;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-xs;
+  padding: 0 $space-sm;
+  height: $status-badge-height;
+  border: 1px solid currentColor;
+  font-family: $font-mono;
+  font-size: $font-size-xs;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: $font-weight-bold;
+}
+
+.badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.badge--online {
+  color: $ok;
+}
+.badge--standby {
+  color: $accent-2;
+}
+.badge--degraded {
+  color: $warning;
+}
+.badge--offline {
+  color: $danger;
+}
+.badge--rebooting {
+  color: $accent;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.4;
+  }
+}

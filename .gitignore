@@ -1,0 +1,79 @@
+# compiled output
+/dist
+/tmp
+/out-tsc
+/bazel-out
+
+# Node
+/node_modules
+npm-debug.log
+yarn-error.log
+
+# IDEs and editors
+.idea/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Visual Studio Code
+.vscode/
+
+# Misc
+/.angular/cache
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Nx
+/.nx/cache
+/.nx/workspace-data
+
+# Capacitor / Android / iOS
+apps/edge/android/app/build/
+apps/edge/android/build/
+apps/edge/android/.gradle/
+apps/edge/android/local.properties
+apps/edge/android/app/release/
+apps/edge/android/app/src/main/assets/public/
+apps/edge/ios/Pods/
+apps/edge/ios/build/
+apps/edge/ios/App/App/public/
+*.keystore
+*.jks
+!apps/edge/android/app/debug.keystore
+
+# Netlify
+.netlify/
+
+# Fly.io
+.fly/
+
+# Env
+.env
+.env.local
+.env.*.local
+infra/env/.env
+infra/env/.env.staging
+infra/env/.env.prod
+
+# Build artifacts
+apps/web/dist/
+apps/api/dist/
+apps/edge/www/
+apps/edge/android/app/src/main/assets/

@@ -1,0 +1,29 @@
+@use '../tokens/colors' as *;
+@use '../tokens/typography' as *;
+
+/// Minimal reset so every consuming app starts from the same base.
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: $bg-base;
+  color: $text-primary;
+  font-family: $font-ui;
+  font-size: $font-size-base;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: $accent;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}

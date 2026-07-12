@@ -1,0 +1,12 @@
+@use '../tokens/grid' as *;
+@use '../tokens/colors' as *;
+
+/// Retro telemetry grid backdrop — see docx 4.x "Grid de fondo".
+/// Apply on the main content surface (NOT on modals).
+@mixin grid-background {
+  background-color: $bg-base;
+  background-image:
+    linear-gradient(to right, rgba($accent, $grid-opacity) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba($accent, $grid-opacity) 1px, transparent 1px);
+  background-size: $grid-cell-size $grid-cell-size;
+}

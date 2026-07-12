@@ -1,0 +1,58 @@
+@use '@servidor/ui-design-tokens' as *;
+
+:host {
+  display: inline-flex;
+}
+
+.cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-sm;
+  padding: $space-sm $space-lg;
+  background-color: transparent;
+  color: $accent;
+  border: 1px solid $accent;
+  font-family: $font-mono;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+
+  &:hover:not(:disabled) {
+    background-color: rgba($accent, 0.12);
+  }
+
+  &:focus-visible {
+    outline: 2px solid $accent;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.cmd--primary {
+  background-color: $accent;
+  color: $bg-base;
+
+  &:hover:not(:disabled) {
+    background-color: lighten($accent, 6%);
+  }
+}
+
+.cmd--danger {
+  color: $danger;
+  border-color: $danger;
+
+  &:hover:not(:disabled) {
+    background-color: rgba($danger, 0.12);
+  }
+}
+
+.cmd__prefix {
+  font-weight: $font-weight-bold;
+}
