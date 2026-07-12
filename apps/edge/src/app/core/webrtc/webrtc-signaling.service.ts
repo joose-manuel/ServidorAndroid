@@ -22,9 +22,14 @@ export class WebrtcSignalingService {
   readonly answer$ = new Subject<WebrtcAnswerPayload>();
   readonly iceCandidate$ = new Subject<WebrtcIceCandidatePayload>();
   readonly sessionEnded$ = new Subject<{ sessionId: string }>();
+  /** Emite cada vez que llega un session-requested nuevo (idempotente: se puede subscribir varias veces). */
+  readonly sessionRequested$ = new Subject<WebrtcSessionRequestedPayload>();
 
   start(): void {
     const namespaceUrl = this.namespaceUrl();
+    // #region debug-point D:namespace-url
+    fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"pre-fix",hypothesisId:"D",location:"edge/webrtc-signaling.service.ts:start",msg:"[DEBUG] start signaling",data:{namespaceUrl,hasSocket:!!this.socket},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!namespaceUrl) {
       return;
     }
@@ -42,10 +47,25 @@ export class WebrtcSignalingService {
       transports: ['websocket'],
       reconnection: true,
     });
-    this.socket.on('connect', () => this.registerNode());
-    this.socket.on('session-requested', (payload: WebrtcSessionRequestedPayload) =>
-      this.pendingRequest.set(payload),
-    );
+    this.socket.on('connect', () => {
+      // #region debug-point D:socket-connect
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"pre-fix",hypothesisId:"D",location:"edge/webrtc-signaling.service.ts:connect",msg:"[DEBUG] socket connected",data:{socketId:this.socket?.id ?? null},ts:Date.now()})}).catch(()=>{});
+      // #endregion
+      this.registerNode();
+    });
+    this.socket.on('connect_error', (error: Error) => {
+      // #region debug-point D:connect-error
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"pre-fix",hypothesisId:"D",location:"edge/webrtc-signaling.service.ts:connect_error",msg:"[DEBUG] socket connect error",data:{message:error.message},ts:Date.now()})}).catch(()=>{});
+      // #endregion
+    });
+    this.socket.on('session-requested', (payload: WebrtcSessionRequestedPayload) => {
+      // #region debug-point A:session-requested
+      console.log('[signaling] session-requested received', payload.sessionId, payload.mode);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"A",location:"edge/webrtc-signaling.service.ts:session-requested",msg:"[DEBUG] session requested received",data:{sessionId:payload.sessionId,mode:payload.mode,hasTurn:!!payload.turn},ts:Date.now()})}).catch(()=>{});
+      // #endregion
+      this.pendingRequest.set(payload);
+      this.sessionRequested$.next(payload);
+    });
     this.socket.on('offer', (payload: WebrtcOfferPayload) => this.offer$.next(payload));
     this.socket.on('answer', (payload: WebrtcAnswerPayload) => this.answer$.next(payload));
     this.socket.on('ice-candidate', (payload: WebrtcIceCandidatePayload) =>
@@ -83,6 +103,9 @@ export class WebrtcSignalingService {
 
   private registerNode(): void {
     const nodeId = this.identity.deviceId();
+    // #region debug-point D:register-node
+    fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"pre-fix",hypothesisId:"D",location:"edge/webrtc-signaling.service.ts:registerNode",msg:"[DEBUG] register node emit",data:{nodeId},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     this.socket?.emit('register-node', {
       nodeId,
       deviceId: nodeId,

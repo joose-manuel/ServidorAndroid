@@ -173,7 +173,7 @@ export class CameraComponent implements OnDestroy {
   private setupPeer(session: CameraSessionResponse, edgeNodeId: string): void {
     this.destroyPeer();
     this.signaling.connect(edgeNodeId);
-    this.signaling.joinSession({ sessionId: session.session.id, role: 'viewer' });
+    this.signaling.joinSession({ sessionId: session.session.id, role: 'user' });
 
     this.peer = new RTCPeerConnection({
       iceServers: [

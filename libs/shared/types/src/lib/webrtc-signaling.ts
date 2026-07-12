@@ -1,5 +1,6 @@
 export type WebrtcSessionMode = 'camera' | 'intercom';
-export type WebrtcPeerRole = 'viewer' | 'node';
+/** 'user' = viewer (web/admin), 'node' = edge node (S9). */
+export type WebrtcPeerRole = 'user' | 'node';
 
 export interface WebrtcSessionDescription {
   type: 'offer' | 'answer' | 'pranswer' | 'rollback' | string;

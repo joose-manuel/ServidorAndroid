@@ -1,8 +1,9 @@
-import { Component, OnInit, computed, effect, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, effect, inject, signal } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 import { ApiHealthService } from './core/api/api-health.service';
 import { RemoteNodeConfigService } from './core/config/remote-node-config.service';
 import { MetricsReporterService } from './core/metrics/metrics-reporter.service';
@@ -190,6 +191,7 @@ export class AppComponent implements OnInit {
   readonly api = inject(ApiHealthService);
   readonly net = inject(NetworkStatusService);
   readonly telemetry = inject(EdgeTelemetryService);
+  private readonly lastAutoRoutedSessionId = signal<string | null>(null);
 
   readonly currentPath = toSignal(
     this.router.events.pipe(
@@ -218,22 +220,12 @@ export class AppComponent implements OnInit {
     { label: 'Ajustes', path: '/settings' },
   ];
 
+  private pendingRedirectSub?: Subscription;
+
   constructor() {
     effect(() => {
       if (!this.pair.isPaired() && this.currentPath() !== '/boot') {
         void this.router.navigateByUrl('/boot');
-      }
-    });
-
-    effect(() => {
-      const request = this.webrtc.pendingRequest();
-      if (!request || !this.pair.isPaired()) {
-        return;
-      }
-
-      const targetPath = request.mode === 'camera' ? '/camera' : '/intercom';
-      if (this.currentPath() !== targetPath) {
-        void this.router.navigateByUrl(targetPath);
       }
     });
   }
@@ -244,13 +236,39 @@ export class AppComponent implements OnInit {
     this.webrtc.start();
     this.metrics.start();
     this.api.start();
+
+    // Subscripción robusta al sessionRequested$ del signaling.
+    // Garantiza que aunque el effect no dispare, la navegación ocurra.
+    this.pendingRedirectSub = this.webrtc.sessionRequested$.subscribe((request) => {
+      console.log('[app] sessionRequested$ fired', request.sessionId, 'mode=', request.mode);
+      if (!this.pair.isPaired()) {
+        return;
+      }
+      if (this.lastAutoRoutedSessionId() === request.sessionId) {
+        return;
+      }
+      const targetPath = request.mode === 'camera' ? '/camera' : '/intercom';
+      this.lastAutoRoutedSessionId.set(request.sessionId);
+      if (this.currentPath() !== targetPath) {
+        console.log('[app] auto-redirect →', targetPath, 'session', request.sessionId);
+        void this.router.navigateByUrl(targetPath);
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.pendingRedirectSub?.unsubscribe();
   }
 
   navigate(path: string): void {
+    if (path !== '/camera' && path !== '/intercom') {
+      this.webrtc.clearPendingRequest();
+    }
     void this.router.navigateByUrl(path);
   }
 
   goBack(): void {
+    this.webrtc.clearPendingRequest();
     void this.router.navigateByUrl('/dashboard');
   }
 

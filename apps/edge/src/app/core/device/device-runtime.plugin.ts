@@ -9,6 +9,8 @@ export interface DeviceRuntimeInfo {
 
 export interface DeviceRuntimePlugin {
   getInfo(): Promise<DeviceRuntimeInfo>;
+  ensureCameraPermission(): Promise<{ granted: boolean }>;
+  ensureMicrophonePermission(): Promise<{ granted: boolean }>;
 }
 
 export const DeviceRuntime = registerPlugin<DeviceRuntimePlugin>('DeviceRuntime');
