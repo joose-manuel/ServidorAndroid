@@ -2,7 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, eff
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Capacitor } from '@capacitor/core';
-import { Subscription } from 'rxjs';
+import { Subscription, filter, take, timeout } from 'rxjs';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { DeviceIdentityService } from '../../core/device/device-identity.service';
 import { DeviceRuntime } from '../../core/device/device-runtime.plugin';
@@ -16,6 +16,16 @@ import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.servi
     <div class="cam">
       <h2 class="cam__title">&gt; camera-streamer</h2>
       <video #video autoplay playsinline muted class="cam__video"></video>
+      <audio #remoteAudio autoplay class="cam__audio"></audio>
+      <div class="cam__vu">
+        <span class="cam__vu-label">audio</span>
+        <div class="cam__vu-bar">
+          <div class="cam__vu-fill" [style.width.%]="outputLevel()"></div>
+        </div>
+        @if (remoteSpeaking()) {
+          <span class="cam__vu-pill">web hablando</span>
+        }
+      </div>
       <div class="cam__meta">
         <span>estado {{ status() }}</span>
         <span>sesión {{ activeSessionId() ?? 'sin sesión remota' }}</span>
@@ -56,6 +66,41 @@ import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.servi
         aspect-ratio: 9 / 16;
         background: #000;
       }
+      .cam__audio {
+        display: none;
+      }
+      .cam__vu {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .cam__vu-label {
+        color: #5c6773;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .cam__vu-bar {
+        flex: 1;
+        height: 4px;
+        background: #0a1218;
+        border: 1px solid #1c2530;
+        overflow: hidden;
+      }
+      .cam__vu-fill {
+        height: 100%;
+        background: linear-gradient(to right, #5ce17a, #ff7a1a);
+        transition: width 80ms linear;
+        width: 0;
+      }
+      .cam__vu-pill {
+        color: #39ff88;
+        font-size: 10px;
+        text-transform: uppercase;
+        border: 1px solid #1f4a2c;
+        padding: 2px 6px;
+      }
       .cam__btn {
         background: #ff7a1a;
         color: #05070a;
@@ -84,6 +129,7 @@ import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.servi
 })
 export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy {
   @ViewChild('video') videoRef!: ElementRef<HTMLVideoElement>;
+  @ViewChild('remoteAudio') remoteAudioRef!: ElementRef<HTMLAudioElement>;
   private readonly http = inject(HttpClient);
   private readonly server = inject(ServerConfigService);
   private readonly deviceIdentity = inject(DeviceIdentityService);
@@ -94,10 +140,15 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
   readonly pendingSessionId = signal<string | null>(null);
   readonly signalingPendingId = signal<string | null>(null);
   readonly viewReadyForTemplate = signal(false);
+  readonly outputLevel = signal(0);
+  readonly remoteSpeaking = signal(false);
   private stream?: MediaStream;
   private peer?: RTCPeerConnection;
   private readonly viewReady = signal(false);
   private pendingSub?: Subscription;
+  private audioCtx?: AudioContext;
+  private audioAnalyser?: AnalyserNode;
+  private vuTimer?: number;
 
   constructor() {
     // Bridge de solo-lectura hacia la UI para diagnóstico.
@@ -245,10 +296,14 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
         if (!permissionResult?.granted) {
           throw new Error('camera permission not granted');
         }
+        const micResult = await DeviceRuntime.ensureMicrophonePermission();
+        if (!micResult?.granted) {
+          throw new Error('microphone permission not granted');
+        }
       }
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
+        video: { facingMode: { ideal: 'user' } },
+        audio: { echoCancellation: true, noiseSuppression: true },
       });
       // #region debug-point B:getusermedia-ok
       console.log('[camera] getUserMedia ok', this.stream.getTracks().length, 'tracks');
@@ -272,12 +327,39 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
       });
 
       this.signaling.joinSession({ sessionId, role: 'node' });
+
+      // Espera a que la web se una a la sala session:xxx antes de enviar la
+      // oferta. Sin esto, hay race condition: si la oferta llega a una sala
+      // vacía (porque la web todavía no terminó su handshake HTTP→joinSession),
+      // la web se queda en waiting-offer para siempre.
+      // Timeout de 2s por si la web ya estaba en la sala antes de que
+      // el backend pudiera emitirnos peer-joined.
+      console.log('[camera] waiting for web peer-joined', sessionId);
+      await this.signaling
+        .peerJoined$
+        .pipe(
+          filter((p) => p.sessionId === sessionId && p.role === 'user'),
+          take(1),
+          timeout({ first: 2000, meta: { sessionId } }),
+        )
+        .toPromise()
+        .catch(() => undefined);
+      console.log('[camera] web is in the room, sending offer');
+
       this.peer.onicecandidate = (event) => {
         if (event.candidate) {
           this.signaling.sendIceCandidate({
             sessionId,
             candidate: event.candidate.toJSON(),
           });
+        }
+      };
+
+      this.peer.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (event.track.kind === 'audio' && stream && this.remoteAudioRef) {
+          this.remoteAudioRef.nativeElement.srcObject = stream;
+          this.attachRemoteAudioAnalyser(stream);
         }
       };
 
@@ -365,5 +447,61 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
     if (notifyEnd) {
       this.pendingSessionId.set(null);
     }
+    this.detachAudioAnalyser();
+    if (this.remoteAudioRef) {
+      this.remoteAudioRef.nativeElement.srcObject = null;
+    }
+    this.outputLevel.set(0);
+    this.remoteSpeaking.set(false);
+  }
+
+  private attachRemoteAudioAnalyser(stream: MediaStream): void {
+    this.detachAudioAnalyser();
+    try {
+      const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) {
+        return;
+      }
+      if (!this.audioCtx) {
+        this.audioCtx = new Ctx();
+      }
+      const ctx: AudioContext = this.audioCtx!;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      this.audioAnalyser = analyser;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        if (!this.audioAnalyser) {
+          return;
+        }
+        this.audioAnalyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        const avg = sum / data.length;
+        this.outputLevel.set(Math.min(100, (avg / 128) * 100));
+        const speaking = avg > 6;
+        if (speaking !== this.remoteSpeaking()) {
+          this.remoteSpeaking.set(speaking);
+        }
+        this.vuTimer = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (err) {
+      console.warn('[camera] cannot attach remote audio analyser', err);
+    }
+  }
+
+  private detachAudioAnalyser(): void {
+    if (this.vuTimer) {
+      cancelAnimationFrame(this.vuTimer);
+      this.vuTimer = undefined;
+    }
+    this.audioAnalyser = undefined;
+    if (this.audioCtx && this.audioCtx.state !== 'closed') {
+      void this.audioCtx.close();
+    }
+    this.audioCtx = undefined;
   }
 }
