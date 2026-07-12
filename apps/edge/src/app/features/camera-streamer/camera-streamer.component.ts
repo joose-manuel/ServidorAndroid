@@ -1,8 +1,11 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, ViewChild, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { Capacitor } from '@capacitor/core';
+import { Subscription } from 'rxjs';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { DeviceIdentityService } from '../../core/device/device-identity.service';
+import { DeviceRuntime } from '../../core/device/device-runtime.plugin';
 import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.service';
 
 @Component({
@@ -16,9 +19,22 @@ import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.servi
       <div class="cam__meta">
         <span>estado {{ status() }}</span>
         <span>sesión {{ activeSessionId() ?? 'sin sesión remota' }}</span>
+        <span>solicitud {{ pendingSessionId() ?? 'sin solicitud pendiente' }}</span>
+        <span>signaling-pending {{ signalingPendingId() ?? '—' }}</span>
+        <span>viewReady {{ viewReadyForTemplate() ? 'sí' : 'no' }}</span>
       </div>
       <div class="cam__bar">
-        <button class="cam__btn" (click)="toggle()">{{ active() ? 'detener' : 'publicar' }}</button>
+        <button class="cam__btn" type="button" (click)="forceStartFromSignaling()">
+          iniciar cámara remota
+        </button>
+        @if (pendingSessionId() && !activeSessionId()) {
+          <button class="cam__btn cam__btn--ghost" type="button" (click)="acceptPendingRequest()">
+            aceptar pendiente
+          </button>
+          <button class="cam__btn cam__btn--ghost" type="button" (click)="dismissPendingRequest()">
+            descartar solicitud
+          </button>
+        }
       </div>
     </div>
   `,
@@ -50,6 +66,12 @@ import { WebrtcSignalingService } from '../../core/webrtc/webrtc-signaling.servi
         width: 100%;
         text-transform: uppercase;
       }
+      .cam__btn--ghost {
+        background: #0a0e14;
+        color: #d7dee3;
+        border: 1px solid #1c2530;
+        margin-top: 8px;
+      }
       .cam__meta {
         display: grid;
         gap: 4px;
@@ -69,27 +91,19 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
   readonly active = signal(false);
   readonly status = signal<'idle' | 'awaiting-answer' | 'streaming' | 'error'>('idle');
   readonly activeSessionId = signal<string | null>(null);
+  readonly pendingSessionId = signal<string | null>(null);
+  readonly signalingPendingId = signal<string | null>(null);
+  readonly viewReadyForTemplate = signal(false);
   private stream?: MediaStream;
   private peer?: RTCPeerConnection;
   private readonly viewReady = signal(false);
+  private pendingSub?: Subscription;
 
   constructor() {
+    // Bridge de solo-lectura hacia la UI para diagnóstico.
     effect(() => {
-      const request = this.signaling.pendingRequest();
-      if (!request || request.mode !== 'camera' || !this.viewReady()) {
-        return;
-      }
-
-      if (this.activeSessionId() === request.sessionId) {
-        return;
-      }
-
-      void this.startRemoteSession(request.sessionId, request.turn?.urls ? request.turn : undefined);
+      this.signalingPendingId.set(this.signaling.pendingRequest()?.sessionId ?? null);
     });
-  }
-
-  ngAfterViewInit(): void {
-    this.viewReady.set(true);
   }
 
   ngOnInit(): void {
@@ -115,7 +129,59 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
       if (payload.sessionId === this.activeSessionId()) {
         this.stop();
       }
+      if (payload.sessionId === this.pendingSessionId()) {
+        this.pendingSessionId.set(null);
+      }
     });
+
+    // Auto-trigger robusto basado en Subject del signaling.
+    // Es 100% determinista: cuando llega un session-requested nuevo
+    // por el WebSocket, el Subject emite y arrancamos la cámara.
+    this.pendingSub = this.signaling.sessionRequested$.subscribe((request) => {
+      console.log('[camera] sessionRequested$ fired', request.sessionId, 'viewReady=', this.viewReady());
+      this.tryAutoStart();
+    });
+  }
+
+  /**
+   * Reintenta el auto-start. Se llama desde la subscripción Y desde
+   * ngAfterViewInit, para cubrir tanto el caso "llega la request antes
+   * de que la vista esté lista" como "la vista está lista antes de la request".
+   */
+  private tryAutoStart(): void {
+    const request = this.signaling.pendingRequest();
+    if (!request || request.mode !== 'camera' || !this.viewReady()) {
+      console.log('[camera] tryAutoStart: skipped', {
+        hasRequest: !!request,
+        mode: request?.mode,
+        viewReady: this.viewReady(),
+      });
+      return;
+    }
+    this.pendingSessionId.set(request.sessionId);
+    if (this.activeSessionId() === request.sessionId) {
+      return;
+    }
+    this.startRemoteSession(request.sessionId, request.turn?.urls ? request.turn : undefined).catch((err) => {
+      console.error('[camera] autoStart failed', err);
+    });
+  }
+
+  ngAfterViewInit(): void {
+    this.viewReady.set(true);
+    this.viewReadyForTemplate.set(true);
+    console.log('[camera] ngAfterViewInit viewReady=true');
+    // Si pendingRequest ya estaba seteado cuando la vista se montó,
+    // reintentamos el auto-start ahora que viewReady es true.
+    this.tryAutoStart();
+    // #region debug-point E:view-ready
+    fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"E",location:"edge/camera-streamer.component.ts:ngAfterViewInit",msg:"[DEBUG] camera view ready",data:{activeSessionId:this.activeSessionId()},ts:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
+
+  ngOnDestroy(): void {
+    this.pendingSub?.unsubscribe();
+    void this.stop();
   }
 
   async toggle(): Promise<void> {
@@ -154,13 +220,40 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
     sessionId: string,
     turn?: { urls: string[]; username: string; credential: string; ttlSeconds: number },
   ): Promise<void> {
-    await this.stop(false);
+    // #region debug-point B:start-remote-session-entry
+    console.log('[camera] startRemoteSession called', sessionId, { hasTurn: !!turn });
+    fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:startRemoteSession:entry",msg:"[DEBUG] start remote session entry",data:{sessionId,hasTurn:!!turn,nativePlatform:Capacitor.isNativePlatform()},ts:Date.now()})}).catch(()=>{});
+    // #endregion
+    this.status.set('awaiting-answer');
 
     try {
+      await this.stop(false);
+      // #region debug-point B:start-remote-session
+      console.log('[camera] stop completed, requesting permission');
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:startRemoteSession",msg:"[DEBUG] start remote session",data:{sessionId,hasTurn:!!turn},ts:Date.now()})}).catch(()=>{});
+      // #endregion
+      if (Capacitor.isNativePlatform()) {
+        // #region debug-point B:permission-check
+        console.log('[camera] requesting camera permission');
+        fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:permission-check",msg:"[DEBUG] requesting camera permission",data:{sessionId},ts:Date.now()})}).catch(()=>{});
+        // #endregion
+        const permissionResult = await DeviceRuntime.ensureCameraPermission();
+        // #region debug-point B:permission-result
+        console.log('[camera] camera permission result', permissionResult);
+        fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:permission-result",msg:"[DEBUG] camera permission result",data:{sessionId,granted:!!permissionResult?.granted,result:permissionResult},ts:Date.now()})}).catch(()=>{});
+        // #endregion
+        if (!permissionResult?.granted) {
+          throw new Error('camera permission not granted');
+        }
+      }
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+      // #region debug-point B:getusermedia-ok
+      console.log('[camera] getUserMedia ok', this.stream.getTracks().length, 'tracks');
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:getUserMedia:ok",msg:"[DEBUG] getUserMedia resolved",data:{sessionId,trackCount:this.stream.getTracks().length},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       this.videoRef.nativeElement.srcObject = this.stream;
       this.active.set(true);
       this.activeSessionId.set(sessionId);
@@ -192,16 +285,68 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
 
       const offer = await this.peer.createOffer();
       await this.peer.setLocalDescription(offer);
+      // #region debug-point B:offer-created
+      console.log('[camera] offer created', offer.type, !!offer.sdp);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:offer-created",msg:"[DEBUG] local offer created",data:{sessionId,offerType:offer.type,hasSdp:!!offer.sdp},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       this.signaling.sendOffer({
         sessionId,
         sdp: { type: offer.type, sdp: offer.sdp ?? undefined },
       });
       this.signaling.clearPendingRequest(sessionId);
+      this.pendingSessionId.set(sessionId);
     } catch (err) {
-      console.warn('camera remote start failed', err);
+      // #region debug-point B:getusermedia-error
+      console.error('[camera] remote session failed', err);
+      fetch("http://192.168.1.11:7777/event",{method:"POST",body:JSON.stringify({sessionId:"camera-offer-stall",runId:"post-fix",hypothesisId:"B",location:"edge/camera-streamer.component.ts:catch",msg:"[DEBUG] remote session failed",data:{sessionId,errorName:err instanceof Error ? err.name : typeof err,errorMessage:err instanceof Error ? err.message : String(err)},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       this.status.set('error');
       await this.stop();
     }
+  }
+
+  async acceptPendingRequest(): Promise<void> {
+    const request = this.signaling.pendingRequest();
+    if (!request || request.mode !== 'camera') {
+      return;
+    }
+
+    await this.startRemoteSession(request.sessionId, request.turn?.urls ? request.turn : undefined);
+  }
+
+  /**
+   * Fallback manual: lee la solicitud pendiente del servicio de señalización
+   * (no de los signals locales) y arranca la cámara. Útil cuando el effect
+   * automático no dispara por condiciones de timing.
+   */
+  async forceStartFromSignaling(): Promise<void> {
+    const request = this.signaling.pendingRequest();
+    console.log('[camera] forceStartFromSignaling', { hasRequest: !!request, mode: request?.mode });
+    if (!request) {
+      return;
+    }
+    if (request.mode !== 'camera') {
+      return;
+    }
+    if (!this.viewReady()) {
+      console.warn('[camera] forceStartFromSignaling: view not ready yet');
+      return;
+    }
+    this.pendingSessionId.set(request.sessionId);
+    if (this.activeSessionId() === request.sessionId) {
+      return;
+    }
+    try {
+      await this.startRemoteSession(request.sessionId, request.turn?.urls ? request.turn : undefined);
+    } catch (err) {
+      console.error('[camera] forceStartFromSignaling failed', err);
+    }
+  }
+
+  dismissPendingRequest(): void {
+    this.signaling.clearPendingRequest();
+    this.pendingSessionId.set(null);
+    this.status.set('idle');
   }
 
   private async stop(notifyEnd = true): Promise<void> {
@@ -217,9 +362,8 @@ export class CameraStreamerComponent implements AfterViewInit, OnInit, OnDestroy
     this.active.set(false);
     this.status.set('idle');
     this.activeSessionId.set(null);
-  }
-
-  ngOnDestroy(): void {
-    void this.stop();
+    if (notifyEnd) {
+      this.pendingSessionId.set(null);
+    }
   }
 }
