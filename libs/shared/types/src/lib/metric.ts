@@ -47,6 +47,8 @@ export interface UptimeRecord {
 
 export interface EdgeMetricsSnapshot {
   edgeNodeId: string;
+  deviceName?: string;
+  deviceModel?: string;
   latency?: LatencyMetric;
   bandwidth?: BandwidthSample;
   battery?: BatteryMetric;
