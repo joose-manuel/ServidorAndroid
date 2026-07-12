@@ -24,6 +24,8 @@ export class WebrtcSignalingService {
   readonly sessionEnded$ = new Subject<{ sessionId: string }>();
   /** Emite cada vez que llega un session-requested nuevo (idempotente: se puede subscribir varias veces). */
   readonly sessionRequested$ = new Subject<WebrtcSessionRequestedPayload>();
+  /** Emite cuando el otro peer (la web) se une a la sala session:xxx. */
+  readonly peerJoined$ = new Subject<{ sessionId: string; role: 'user' | 'node' }>();
 
   start(): void {
     const namespaceUrl = this.namespaceUrl();
@@ -76,6 +78,10 @@ export class WebrtcSignalingService {
         this.pendingRequest.set(null);
       }
       this.sessionEnded$.next(payload);
+    });
+    this.socket.on('peer-joined', (payload: { sessionId: string; role: 'user' | 'node' }) => {
+      console.log('[signaling] peer-joined', payload.role, payload.sessionId);
+      this.peerJoined$.next(payload);
     });
   }
 

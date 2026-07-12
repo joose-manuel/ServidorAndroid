@@ -1,6 +1,7 @@
 import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { IntercomService } from './intercom.service';
+import { TurnCredentialsService } from '../camera/turn-credentials.service';
 import { RequestIntercomDto, SetIntercomMuteDto } from '@servidor/shared-dto';
 import { WebRTCGateway } from '../webrtc/webrtc.gateway';
 
@@ -8,6 +9,7 @@ import { WebRTCGateway } from '../webrtc/webrtc.gateway';
 export class IntercomController {
   constructor(
     private readonly intercom: IntercomService,
+    private readonly turn: TurnCredentialsService,
     private readonly webrtc: WebRTCGateway,
   ) {}
 
@@ -17,12 +19,14 @@ export class IntercomController {
       edgeNodeId: dto.edgeNodeId,
       userId: (req as any).userId ?? 'unknown',
     });
+    const turn = this.turn.issue(dto.edgeNodeId);
     this.webrtc.notifySessionRequested({
       sessionId: session.id,
       edgeNodeId: dto.edgeNodeId,
       mode: 'intercom',
+      turn,
     });
-    return session;
+    return { session, turn };
   }
 
   @Post('session/:id/mute')
