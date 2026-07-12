@@ -3,6 +3,7 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { AuthService } from './core/auth/auth.service';
 import { ContentService } from './core/content/content.service';
+import { PairingStoreService } from './core/pairing/pairing-store.service';
 
 @Component({
   selector: 'app-root',
@@ -45,8 +46,10 @@ import { ContentService } from './core/content/content.service';
 export class AppComponent implements OnInit {
   readonly auth = inject(AuthService);
   readonly content = inject(ContentService);
+  private readonly pairing = inject(PairingStoreService);
 
   ngOnInit(): void {
     this.content.load();
+    void this.pairing.syncFromBackend();
   }
 }

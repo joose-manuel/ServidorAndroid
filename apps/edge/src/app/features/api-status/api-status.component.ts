@@ -23,6 +23,10 @@ import { ServerConfigService } from '../../core/config/server-config.service';
           <span class="api__value">{{ server.apiBaseUrl() }}</span>
         </div>
         <div class="api__row">
+          <span class="api__label">origen</span>
+          <span class="api__value">{{ server.isCustom() ? 'URL guardada en el dispositivo' : 'URL desplegada por defecto' }}</span>
+        </div>
+        <div class="api__row">
           <span class="api__label">latencia api</span>
           <span class="api__value">{{ snapshot().latencyMs ?? '—' }} ms</span>
         </div>
@@ -36,7 +40,10 @@ import { ServerConfigService } from '../../core/config/server-config.service';
         </div>
       </section>
 
-      <button class="api__action" (click)="refresh()">verificar ahora</button>
+      <div class="api__actions">
+        <button class="api__action" (click)="refresh()">verificar ahora</button>
+        <button class="api__action api__action--ghost" (click)="useDeployedApi()">usar API desplegada</button>
+      </div>
     </div>
   `,
   styles: [
@@ -111,7 +118,6 @@ import { ServerConfigService } from '../../core/config/server-config.service';
         word-break: break-word;
       }
       .api__action {
-        width: 100%;
         border: 1px solid #ff7a1a;
         background: transparent;
         color: #ff7a1a;
@@ -120,6 +126,15 @@ import { ServerConfigService } from '../../core/config/server-config.service';
         font-size: 12px;
         text-transform: uppercase;
         cursor: pointer;
+      }
+      .api__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .api__action--ghost {
+        border-color: #1c2530;
+        color: #d7dee3;
       }
     `,
   ],
@@ -150,6 +165,11 @@ export class ApiStatusComponent {
   });
 
   refresh(): void {
+    void this.api.checkNow();
+  }
+
+  async useDeployedApi(): Promise<void> {
+    await this.server.reset();
     void this.api.checkNow();
   }
 }

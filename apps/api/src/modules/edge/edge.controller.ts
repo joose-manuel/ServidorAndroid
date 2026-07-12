@@ -9,6 +9,20 @@ function generateCode(): string {
 export class EdgeController {
   constructor(private readonly store: EdgeStore) {}
 
+  @Post('connect')
+  connect(@Body() body: { deviceId: string }): { deviceId: string; status: string; pairedAt: string | null } {
+    if (!body.deviceId?.trim()) {
+      throw new NotFoundException('deviceId is required');
+    }
+
+    const device = this.store.connect(body.deviceId.trim());
+    return {
+      deviceId: device.deviceId,
+      status: 'paired',
+      pairedAt: device.pairedAt,
+    };
+  }
+
   @Post('register')
   register(@Body() body: { deviceId: string }): { code: string; deviceId: string } {
     const existing = this.store.findByDeviceId(body.deviceId);
@@ -44,6 +58,21 @@ export class EdgeController {
     return { paired: device.paired, pairedAt: device.pairedAt };
   }
 
+  @Get('active')
+  active(): { deviceId: string; paired: boolean; pairedAt: string | null; lastSeen: string } | null {
+    const device = this.store.active();
+    if (!device) {
+      return null;
+    }
+
+    return {
+      deviceId: device.deviceId,
+      paired: device.paired,
+      pairedAt: device.pairedAt,
+      lastSeen: device.lastSeen,
+    };
+  }
+
   @Post('unpair')
   unpair(@Body() body: { deviceId: string }): { ok: boolean } {
     const removed = this.store.unpair(body.deviceId);
@@ -53,4 +82,3 @@ export class EdgeController {
     return { ok: true };
   }
 }
-

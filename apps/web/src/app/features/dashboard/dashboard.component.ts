@@ -156,6 +156,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private chartsReady = false;
   private latestCapturedAt: string | null = null;
+  private lastHistoryDeviceId: string | null = null;
 
   @ViewChild('latencyChart') latencyCanvas?: ElementRef<HTMLCanvasElement>;
   @ViewChild('bandwidthChart') bandwidthCanvas?: ElementRef<HTMLCanvasElement>;
@@ -186,10 +187,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const base = this.server.apiBaseUrl();
     const deviceId = this.pairing.deviceId();
     if (!base || !deviceId) {
+      this.lastHistoryDeviceId = null;
       this.loadingHistory.set(false);
       return;
     }
 
+    this.lastHistoryDeviceId = deviceId;
     this.loadingHistory.set(true);
     this.lastError.set(null);
     this.http
@@ -216,6 +219,9 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const base = this.server.apiBaseUrl();
     const deviceId = this.pairing.deviceId();
     if (!base || !deviceId) return;
+    if (deviceId !== this.lastHistoryDeviceId) {
+      void this.refreshHistory();
+    }
 
     this.http
       .get<EdgeMetricsSnapshot | null>(`${base}/metrics/current/${deviceId}`)
