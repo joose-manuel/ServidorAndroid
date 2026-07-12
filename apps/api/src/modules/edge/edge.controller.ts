@@ -73,6 +73,54 @@ export class EdgeController {
     };
   }
 
+  @Get('config/:deviceId')
+  config(@Param('deviceId') deviceId: string) {
+    if (!deviceId?.trim()) {
+      throw new NotFoundException('deviceId is required');
+    }
+
+    return this.store.config(deviceId.trim());
+  }
+
+  @Post('config')
+  updateConfig(
+    @Body()
+    body: {
+      deviceId: string;
+      intervalSec?: number;
+      durationSec?: number;
+      scheduledTimeLocal?: string | null;
+      deviceName?: string | null;
+    },
+  ) {
+    if (!body.deviceId?.trim()) {
+      throw new NotFoundException('deviceId is required');
+    }
+
+    return this.store.updateConfig(body.deviceId.trim(), {
+      intervalSec:
+        typeof body.intervalSec === 'number'
+          ? Math.max(5, Math.min(86400, Math.round(body.intervalSec)))
+          : undefined,
+      durationSec:
+        typeof body.durationSec === 'number'
+          ? Math.max(2, Math.min(3600, Math.round(body.durationSec)))
+          : undefined,
+      scheduledTimeLocal:
+        typeof body.scheduledTimeLocal === 'string'
+          ? body.scheduledTimeLocal.trim() || null
+          : body.scheduledTimeLocal === null
+            ? null
+            : undefined,
+      deviceName:
+        typeof body.deviceName === 'string'
+          ? body.deviceName.trim() || null
+          : body.deviceName === null
+            ? null
+            : undefined,
+    });
+  }
+
   @Post('unpair')
   unpair(@Body() body: { deviceId: string }): { ok: boolean } {
     const removed = this.store.unpair(body.deviceId);

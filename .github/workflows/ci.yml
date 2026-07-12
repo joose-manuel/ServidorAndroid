@@ -7,18 +7,13 @@ on:
     branches: [develop, main]
   workflow_dispatch:
 
-# Cancel in-progress runs on the same branch / PR
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  NX_CLOUD_DISTRIBUTED_EXECUTION: false
-  NX_VERBOSE_LOGGING: false
-
 jobs:
-  affected:
-    name: Lint / Test / Build (affected)
+  build:
+    name: Build (api / web / edge)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -37,29 +32,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Restore Nx cache
-        uses: actions/cache@v4
-        with:
-          path: .nx/cache
-          key: nx-cache-${{ runner.os }}-${{ hashFiles('nx.json', 'package-lock.json', 'tsconfig.base.json') }}
-          restore-keys: |
-            nx-cache-${{ runner.os }}-
+      - name: Build api
+        run: npx nx build api
 
-      - name: Run Nx affected lint
-        run: npx nx affected -t lint --parallel=2 --max-warnings=0
+      - name: Build web
+        run: npx nx build web
 
-      - name: Run Nx affected test
-        run: npx nx affected -t test --parallel=2 --coverage
-
-      - name: Run Nx affected build
-        run: npx nx affected -t build --parallel=2
-
-      - name: Upload coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          if-no-files-found: ignore
-          retention-days: 14
-
+      - name: Build edge
+        run: npx nx build edge

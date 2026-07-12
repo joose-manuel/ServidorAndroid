@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ApiHealthService } from './core/api/api-health.service';
+import { RemoteNodeConfigService } from './core/config/remote-node-config.service';
 import { MetricsReporterService } from './core/metrics/metrics-reporter.service';
 import { NetworkStatusService } from './core/network/network-status.service';
 import { PairingStoreService } from './core/pairing/pairing-store.service';
@@ -182,6 +183,7 @@ interface NavItem {
 export class AppComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly metrics = inject(MetricsReporterService);
+  private readonly remoteConfig = inject(RemoteNodeConfigService);
   private readonly pair = inject(PairingStoreService);
   readonly api = inject(ApiHealthService);
   readonly net = inject(NetworkStatusService);
@@ -224,6 +226,7 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {
     this.telemetry.start();
+    this.remoteConfig.start();
     this.metrics.start();
     this.api.start();
   }

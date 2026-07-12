@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { HudPanelComponent } from '@servidor/ui-components';
 import { ServerConfigService } from '../../core/config/server-config.service';
 import { ContentService } from '../../core/content/content.service';
@@ -18,10 +19,18 @@ interface EdgeStatusResponse {
   pairedAt: string | null;
 }
 
+interface EdgeMeasurementConfig {
+  intervalSec: number;
+  durationSec: number;
+  scheduledTimeLocal: string | null;
+  deviceName: string | null;
+  updatedAt: string;
+}
+
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, HudPanelComponent],
+  imports: [CommonModule, FormsModule, HudPanelComponent],
   template: `
     <hud-panel [title]="content.t('settings', 'title', 'Ajustes del nodo')">
       <div class="terminal">
@@ -75,22 +84,24 @@ interface EdgeStatusResponse {
 
       <hud-panel title="Configuración de mediciones">
         <div class="config">
-          <div class="config__row">
-            <span class="config__label">intervalo:</span>
-            <span>{{ snapshot()?.measurementConfig?.intervalSec ?? '—' }} s</span>
-          </div>
-          <div class="config__row">
-            <span class="config__label">duración:</span>
-            <span>{{ snapshot()?.measurementConfig?.durationSec ?? '—' }} s</span>
-          </div>
-          <div class="config__row">
-            <span class="config__label">hora fija:</span>
-            <span>{{ snapshot()?.measurementConfig?.scheduledTimeLocal ?? 'sin horario fijo' }}</span>
-          </div>
-          <div class="config__row">
-            <span class="config__label">nombre del dispositivo:</span>
-            <span>{{ snapshot()?.deviceName ?? 'sin nombre' }}</span>
-          </div>
+          <label class="config__field">
+            <span class="config__label">intervalo (segundos)</span>
+            <input class="config__input" type="number" min="5" max="86400" [(ngModel)]="intervalDraft" />
+          </label>
+          <label class="config__field">
+            <span class="config__label">duración (segundos)</span>
+            <input class="config__input" type="number" min="2" max="3600" [(ngModel)]="durationDraft" />
+          </label>
+          <label class="config__field">
+            <span class="config__label">hora fija diaria</span>
+            <input class="config__input" type="time" [(ngModel)]="scheduledTimeDraft" />
+            <span class="config__hint">deja vacío este campo si solo quieres usar el intervalo</span>
+          </label>
+          <label class="config__field">
+            <span class="config__label">nombre del dispositivo</span>
+            <input class="config__input" type="text" [(ngModel)]="deviceNameDraft" placeholder="ej. edge sala" />
+          </label>
+
           <div class="config__row">
             <span class="config__label">modelo:</span>
             <span>{{ snapshot()?.deviceModel ?? 'sin detectar' }}</span>
@@ -98,6 +109,14 @@ interface EdgeStatusResponse {
           <div class="config__row">
             <span class="config__label">temperatura:</span>
             <span>{{ snapshot()?.battery?.temperatureC ?? 'sin lectura' }} °C</span>
+          </div>
+          <div class="config__row">
+            <span class="config__label">última sincronización:</span>
+            <span>{{ config()?.updatedAt ? (config()!.updatedAt | date:'short') : 'sin sincronizar' }}</span>
+          </div>
+          <div class="config__actions">
+            <button class="server__cta" (click)="saveMeasurementConfig()">guardar mediciones</button>
+            <button class="server__cta server__cta--ghost" (click)="resetMeasurementConfig()">restaurar</button>
           </div>
         </div>
       </hud-panel>
@@ -184,6 +203,10 @@ interface EdgeStatusResponse {
       display: grid;
       gap: 10px;
     }
+    .config__field {
+      display: grid;
+      gap: 6px;
+    }
     .config__row {
       display: flex;
       justify-content: space-between;
@@ -195,6 +218,23 @@ interface EdgeStatusResponse {
     .config__label {
       color: #ff7a1a;
       text-transform: uppercase;
+    }
+    .config__input {
+      background: #05070a;
+      border: 1px solid #1c2530;
+      color: #d7dee3;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .config__hint {
+      color: #5c6773;
+      font-size: 11px;
+    }
+    .config__actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 8px;
     }
   `],
 })
@@ -209,7 +249,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly health = signal<HealthResponse | null>(null);
   readonly edgeStatus = signal<EdgeStatusResponse | null>(null);
   readonly snapshot = signal<EdgeMetricsSnapshot | null>(null);
+  readonly config = signal<EdgeMeasurementConfig | null>(null);
   private refreshTimer?: ReturnType<typeof setInterval>;
+  intervalDraft = 20;
+  durationDraft = 4;
+  scheduledTimeDraft = '';
+  deviceNameDraft = '';
 
   ngOnInit(): void {
     void this.refresh();
@@ -251,6 +296,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.loadHealth();
     this.loadEdgeStatus();
     this.loadSnapshot();
+    this.loadMeasurementConfig();
   }
 
   private loadHealth(): void {
@@ -287,5 +333,56 @@ export class SettingsComponent implements OnInit, OnDestroy {
       next: (snapshot) => this.snapshot.set(snapshot),
       error: () => this.snapshot.set(null),
     });
+  }
+
+  private loadMeasurementConfig(): void {
+    const base = this.server.apiBaseUrl();
+    const deviceId = this.pairing.deviceId();
+    if (!base || !deviceId) {
+      this.config.set(null);
+      return;
+    }
+
+    this.http.get<EdgeMeasurementConfig>(`${base}/edge/config/${deviceId}?_=${Date.now()}`).subscribe({
+      next: (config) => {
+        this.config.set(config);
+        this.intervalDraft = config.intervalSec;
+        this.durationDraft = config.durationSec;
+        this.scheduledTimeDraft = config.scheduledTimeLocal ?? '';
+        this.deviceNameDraft = config.deviceName ?? '';
+      },
+      error: () => this.config.set(null),
+    });
+  }
+
+  saveMeasurementConfig(): void {
+    const base = this.server.apiBaseUrl();
+    const deviceId = this.pairing.deviceId();
+    if (!base || !deviceId) {
+      return;
+    }
+
+    this.http
+      .post<EdgeMeasurementConfig>(`${base}/edge/config`, {
+        deviceId,
+        intervalSec: Math.max(5, Math.round(Number(this.intervalDraft) || 20)),
+        durationSec: Math.max(2, Math.round(Number(this.durationDraft) || 4)),
+        scheduledTimeLocal: this.scheduledTimeDraft.trim() || null,
+        deviceName: this.deviceNameDraft.trim() || null,
+      })
+      .subscribe({
+        next: (config) => {
+          this.config.set(config);
+          void this.refresh();
+        },
+      });
+  }
+
+  resetMeasurementConfig(): void {
+    const current = this.config();
+    this.intervalDraft = current?.intervalSec ?? 20;
+    this.durationDraft = current?.durationSec ?? 4;
+    this.scheduledTimeDraft = current?.scheduledTimeLocal ?? '';
+    this.deviceNameDraft = current?.deviceName ?? '';
   }
 }
