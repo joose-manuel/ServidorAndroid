@@ -34,8 +34,8 @@ import { PairingStoreService } from '../../core/pairing/pairing-store.service';
       <button class="cta cta--ghost" (click)="clearServer()">
         usar API desplegada
       </button>
-      <button class="cta cta--ghost" (click)="back()">
-        volver
+      <button class="cta cta--dashboard" (click)="goToDashboard()">
+        ir al dashboard
       </button>
     </div>
   `,
@@ -82,6 +82,11 @@ import { PairingStoreService } from '../../core/pairing/pairing-store.service';
         cursor: pointer;
         margin-bottom: 8px;
       }
+      .cta--dashboard {
+        background: #ff7a1a;
+        color: #05070a;
+        border-color: #ff7a1a;
+      }
     `,
   ],
 })
@@ -92,16 +97,18 @@ export class SettingsComponent {
   private readonly router = inject(Router);
 
   clearPairing(): void {
-    this.pair.clear();
+    void this.pair.unpairFromServer().then(() => {
+      void this.router.navigate(['/boot']);
+    });
   }
 
   async clearServer(): Promise<void> {
+    await this.pair.unpairFromServer();
     await this.server.reset();
-    this.pair.clear();
-    this.router.navigate(['/boot']);
+    await this.router.navigate(['/boot']);
   }
 
-  back(): void {
-    history.length > 1 ? history.back() : this.router.navigate(['/dashboard']);
+  goToDashboard(): void {
+    void this.router.navigate(['/dashboard']);
   }
 }

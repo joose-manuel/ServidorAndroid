@@ -67,6 +67,8 @@ export class PairingStoreService {
 
       if (active?.deviceId) {
         this.setPaired(active.deviceId);
+      } else {
+        this.clear();
       }
 
       return this.deviceId();
