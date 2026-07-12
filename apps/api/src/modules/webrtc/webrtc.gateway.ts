@@ -5,10 +5,18 @@ import {
   ConnectedSocket,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  WebSocketServer,
 } from '@nestjs/websockets';
-import { Socket } from 'socket.io';
+import { Namespace, Socket } from 'socket.io';
 import { SupabaseService } from '../../shared/supabase.service';
 import { Logger } from '@nestjs/common';
+import {
+  WebrtcAnswerPayload,
+  WebrtcIceCandidatePayload,
+  WebrtcJoinSessionPayload,
+  WebrtcOfferPayload,
+  WebrtcSessionRequestedPayload,
+} from '@servidor/shared-types';
 
 @WebSocketGateway({
   namespace: '/webrtc',
@@ -17,6 +25,7 @@ import { Logger } from '@nestjs/common';
 export class WebRTCGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(WebRTCGateway.name);
   private activeSessions: Map<string, any> = new Map();
+  @WebSocketServer() server!: Namespace;
 
   constructor(private supabase: SupabaseService) {}
 
@@ -48,23 +57,28 @@ export class WebRTCGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { status: 'ok' };
   }
 
+  @SubscribeMessage('join-session')
+  async handleJoinSession(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: WebrtcJoinSessionPayload,
+  ) {
+    this.logger.log(`Join session ${data.sessionId} as ${data.role}`);
+    client.join(`session:${data.sessionId}`);
+    return { status: 'ok' };
+  }
+
   @SubscribeMessage('offer')
   async handleOffer(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { nodeId: string; offer: any }
+    @MessageBody() data: WebrtcOfferPayload,
   ) {
-    this.logger.log(`Offer received from node: ${data.nodeId}`);
-    
-    // Broadcast offer to all users connected to this node
-    client.broadcast.to(`node:${data.nodeId}`).emit('offer', {
-      nodeId: data.nodeId,
-      offer: data.offer,
+    this.logger.log(`Offer received for session: ${data.sessionId}`);
+    client.broadcast.to(`session:${data.sessionId}`).emit('offer', {
+      sessionId: data.sessionId,
+      sdp: data.sdp,
     });
-
-    // Store in active sessions
-    this.activeSessions.set(`${data.nodeId}:offer`, {
-      nodeId: data.nodeId,
-      offer: data.offer,
+    this.activeSessions.set(`${data.sessionId}:offer`, {
+      sessionId: data.sessionId,
       timestamp: Date.now(),
     });
   }
@@ -72,30 +86,30 @@ export class WebRTCGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('answer')
   async handleAnswer(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { nodeId: string; userId: string; answer: any }
+    @MessageBody() data: WebrtcAnswerPayload & { userId?: string; nodeId?: string; mode?: 'camera' | 'intercom' }
   ) {
-    this.logger.log(`Answer received for node: ${data.nodeId}`);
-    
-    // Send answer to the node
-    client.broadcast.to(`node:${data.nodeId}`).emit('answer', {
-      userId: data.userId,
-      answer: data.answer,
+    this.logger.log(`Answer received for session: ${data.sessionId}`);
+    client.broadcast.to(`session:${data.sessionId}`).emit('answer', {
+      sessionId: data.sessionId,
+      sdp: data.sdp,
     });
 
-    // Register WebRTC session in database
-    const { data: nodeData } = await this.supabase.getEdgeNode(data.nodeId);
-    if (nodeData) {
+    if (data.nodeId && data.userId) {
+      const { data: nodeData } = await this.supabase.getEdgeNode(data.nodeId);
+      if (!nodeData) {
+        return;
+      }
       const { data: session } = await this.supabase.insertWebRTCSession({
         edgeNodeId: data.nodeId,
         userId: data.userId,
-        sessionType: 'camera',
+        sessionType: data.mode ?? 'camera',
       });
-      
       if (session) {
-        this.activeSessions.set(session.id, {
-          sessionId: session.id,
+        this.activeSessions.set(data.sessionId, {
+          sessionId: data.sessionId,
           nodeId: data.nodeId,
           userId: data.userId,
+          dbSessionId: session.id,
           startTime: Date.now(),
         });
       }
@@ -105,22 +119,13 @@ export class WebRTCGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('ice-candidate')
   async handleIceCandidate(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { nodeId: string; userId: string; candidate: any }
+    @MessageBody() data: WebrtcIceCandidatePayload
   ) {
-    this.logger.log(`ICE candidate from node: ${data.nodeId}`);
-    
-    // Broadcast candidate to both node and user
-    if (data.userId) {
-      client.broadcast.to(`user:${data.userId}:${data.nodeId}`).emit('ice-candidate', {
-        nodeId: data.nodeId,
-        candidate: data.candidate,
-      });
-    } else {
-      client.broadcast.to(`node:${data.nodeId}`).emit('ice-candidate', {
-        nodeId: data.nodeId,
-        candidate: data.candidate,
-      });
-    }
+    this.logger.log(`ICE candidate for session: ${data.sessionId}`);
+    client.broadcast.to(`session:${data.sessionId}`).emit('ice-candidate', {
+      sessionId: data.sessionId,
+      candidate: data.candidate,
+    });
   }
 
   @SubscribeMessage('session-end')
@@ -130,18 +135,32 @@ export class WebRTCGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     this.logger.log(`Session ended: ${data.sessionId}`);
     
-    await this.supabase.endWebRTCSession(data.sessionId, data.durationSeconds);
-    
     const sessionInfo = this.activeSessions.get(data.sessionId);
     if (sessionInfo) {
+      if (sessionInfo.dbSessionId) {
+        await this.supabase.endWebRTCSession(sessionInfo.dbSessionId, data.durationSeconds);
+      }
       this.activeSessions.delete(data.sessionId);
     }
 
+    client.broadcast.to(`session:${data.sessionId}`).emit('session-ended', {
+      sessionId: data.sessionId,
+    });
     return { status: 'session ended' };
   }
 
   @SubscribeMessage('ping')
   handlePing(): string {
     return 'pong';
+  }
+
+  notifySessionRequested(payload: WebrtcSessionRequestedPayload): void {
+    if (!this.server) {
+      this.logger.warn(`Cannot notify session ${payload.sessionId}, gateway not ready`);
+      return;
+    }
+
+    this.logger.log(`Notifying node ${payload.edgeNodeId} about ${payload.mode} session ${payload.sessionId}`);
+    this.server.to(`node:${payload.edgeNodeId}`).emit('session-requested', payload);
   }
 }

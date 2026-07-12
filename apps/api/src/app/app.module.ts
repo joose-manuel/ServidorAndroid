@@ -38,6 +38,7 @@ import { AuditLogModule } from '../modules/audit-log/audit-log.module';
 import { EdgeModule } from '../modules/edge/edge.module';
 import { ContentModule } from '../modules/content/content.module';
 import { AuthModule } from '../modules/auth/auth.module';
+import { WebrtcModule } from '../modules/webrtc/webrtc.module';
 
 import { SupabaseModule } from '../infra/supabase/supabase.module';
 import { RealtimeModule } from '../infra/realtime/realtime.module';
@@ -70,6 +71,7 @@ const envFilePaths = envFileCandidates
     NetworkAuditModule,
     MetricsModule,
     AlertsModule,
+    WebrtcModule,
     CameraModule,
     IntercomModule,
     ToolsModule,

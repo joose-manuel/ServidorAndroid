@@ -9,6 +9,7 @@ import { MetricsReporterService } from './core/metrics/metrics-reporter.service'
 import { NetworkStatusService } from './core/network/network-status.service';
 import { PairingStoreService } from './core/pairing/pairing-store.service';
 import { EdgeTelemetryService } from './core/telemetry/edge-telemetry.service';
+import { WebrtcSignalingService } from './core/webrtc/webrtc-signaling.service';
 
 interface NavItem {
   label: string;
@@ -184,6 +185,7 @@ export class AppComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly metrics = inject(MetricsReporterService);
   private readonly remoteConfig = inject(RemoteNodeConfigService);
+  private readonly webrtc = inject(WebrtcSignalingService);
   private readonly pair = inject(PairingStoreService);
   readonly api = inject(ApiHealthService);
   readonly net = inject(NetworkStatusService);
@@ -222,11 +224,24 @@ export class AppComponent implements OnInit {
         void this.router.navigateByUrl('/boot');
       }
     });
+
+    effect(() => {
+      const request = this.webrtc.pendingRequest();
+      if (!request || !this.pair.isPaired()) {
+        return;
+      }
+
+      const targetPath = request.mode === 'camera' ? '/camera' : '/intercom';
+      if (this.currentPath() !== targetPath) {
+        void this.router.navigateByUrl(targetPath);
+      }
+    });
   }
 
   ngOnInit(): void {
     this.telemetry.start();
     this.remoteConfig.start();
+    this.webrtc.start();
     this.metrics.start();
     this.api.start();
   }
