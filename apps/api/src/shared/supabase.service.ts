@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 
 interface EdgeNodeRecord {
@@ -12,26 +12,57 @@ interface WebRtcSessionRecord {
 
 @Injectable()
 export class SupabaseService implements OnModuleInit {
-  private supabase!: SupabaseClient;
+  private readonly logger = new Logger(SupabaseService.name);
+  private supabase: SupabaseClient | null = null;
 
   onModuleInit() {
     const supabaseUrl = process.env['SUPABASE_URL'];
     const supabaseAnonKey = process.env['SUPABASE_ANON_KEY'];
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('SUPABASE_URL y SUPABASE_ANON_KEY son requeridas');
+      this.logger.warn('Supabase deshabilitado: faltan SUPABASE_URL o SUPABASE_ANON_KEY');
+      return;
     }
 
-    this.supabase = createClient(
-      supabaseUrl,
-      supabaseAnonKey,
-    );
+    try {
+      const url = new URL(supabaseUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        this.logger.warn(`Supabase deshabilitado: protocolo inválido en SUPABASE_URL (${url.protocol})`);
+        return;
+      }
+
+      this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+    } catch (error) {
+      this.logger.warn(
+        `Supabase deshabilitado: SUPABASE_URL inválida (${error instanceof Error ? error.message : 'error desconocido'})`,
+      );
+    }
+  }
+
+  private unavailable(message = 'Supabase no está configurado'): { data: null; error: Error } {
+    return { data: null, error: new Error(message) };
+  }
+
+  private unavailableChannel(callback?: (payload: any) => void): RealtimeChannel {
+    return {
+      subscribe: () => this.unavailable('Supabase realtime no está configurado'),
+      on: () => this.unavailableChannel(callback),
+      unsubscribe: async () => 'ok',
+    } as unknown as RealtimeChannel;
+  }
+
+  private client(): SupabaseClient | null {
+    return this.supabase;
   }
 
   // ========== DATABASE OPERATIONS ==========
 
   async getEdgeNode(nodeId: string) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('edge_nodes')
       .select('*')
       .eq('id', nodeId)
@@ -39,7 +70,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async getEdgeNodeByDeviceId(deviceId: string) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('edge_nodes')
       .select('*')
       .eq('device_id', deviceId)
@@ -47,14 +82,22 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async getUserEdgeNodes(userId: string) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('edge_nodes')
       .select('*')
       .eq('user_id', userId);
   }
 
   async createEdgeNode(userId: string, data: any) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('edge_nodes')
       .insert({
         user_id: userId,
@@ -67,7 +110,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async updateEdgeNodeStatus(nodeId: string, status: 'online' | 'offline' | 'streaming') {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('edge_nodes')
       .update({
         status,
@@ -79,7 +126,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async insertMetrics(edgeNodeId: string, metrics: any) {
-    return this.supabase.from('metrics').insert({
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client.from('metrics').insert({
       edge_node_id: edgeNodeId,
       latency: metrics.latency,
       bandwidth: metrics.bandwidth,
@@ -89,7 +140,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async getLatestMetrics(edgeNodeId: string) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('metrics')
       .select('*')
       .eq('edge_node_id', edgeNodeId)
@@ -99,7 +154,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async insertWebRTCSession(data: { edgeNodeId: string; userId: string; sessionType: string }) {
-    return this.supabase.from('webrtc_sessions').insert({
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client.from('webrtc_sessions').insert({
       edge_node_id: data.edgeNodeId,
       user_id: data.userId,
       session_type: data.sessionType,
@@ -110,7 +169,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async endWebRTCSession(sessionId: string, durationSeconds: number) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('webrtc_sessions')
       .update({
         ended_at: new Date().toISOString(),
@@ -120,7 +183,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async insertNetworkDevice(edgeNodeId: string, device: any) {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client
       .from('network_devices')
       .upsert({
         edge_node_id: edgeNodeId,
@@ -133,7 +200,11 @@ export class SupabaseService implements OnModuleInit {
   }
 
   async insertAlert(edgeNodeId: string, alert: any) {
-    return this.supabase.from('alerts').insert({
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    return client.from('alerts').insert({
       edge_node_id: edgeNodeId,
       alert_type: alert.alertType,
       title: alert.title,
@@ -148,7 +219,11 @@ export class SupabaseService implements OnModuleInit {
     edgeNodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`metrics:${edgeNodeId}`)
       .on(
         'postgres_changes',
@@ -167,7 +242,11 @@ export class SupabaseService implements OnModuleInit {
     edgeNodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`edge-node:${edgeNodeId}:status`)
       .on(
         'postgres_changes',
@@ -186,7 +265,11 @@ export class SupabaseService implements OnModuleInit {
     edgeNodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`alerts:${edgeNodeId}`)
       .on(
         'postgres_changes',
@@ -204,45 +287,72 @@ export class SupabaseService implements OnModuleInit {
   // ========== BROADCAST CHANNELS ==========
 
   async broadcastSignal(nodeId: string, signal: any) {
-    const channel = this.supabase.channel(`edge-node:${nodeId}:signals`);
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    const channel = client.channel(`edge-node:${nodeId}:signals`);
     await channel.send({ type: 'broadcast', event: 'SIGNAL', payload: signal });
+    return { data: true, error: null };
   }
 
   subscribeToSignals(
     nodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`edge-node:${nodeId}:signals`)
       .on('broadcast', { event: 'SIGNAL' }, callback)
       .subscribe();
   }
 
   async broadcastMetrics(nodeId: string, metrics: any) {
-    const channel = this.supabase.channel(`edge-node:${nodeId}:metrics`);
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    const channel = client.channel(`edge-node:${nodeId}:metrics`);
     await channel.send({ type: 'broadcast', event: 'METRICS', payload: metrics });
+    return { data: true, error: null };
   }
 
   subscribeToMetricsStream(
     nodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`edge-node:${nodeId}:metrics`)
       .on('broadcast', { event: 'METRICS' }, callback)
       .subscribe();
   }
 
   async broadcastControl(nodeId: string, command: any) {
-    const channel = this.supabase.channel(`edge-node:${nodeId}:control`);
+    const client = this.client();
+    if (!client) {
+      return this.unavailable();
+    }
+    const channel = client.channel(`edge-node:${nodeId}:control`);
     await channel.send({ type: 'broadcast', event: 'CONTROL', payload: command });
+    return { data: true, error: null };
   }
 
   subscribeToControl(
     nodeId: string,
     callback: (payload: any) => void
   ): RealtimeChannel {
-    return this.supabase
+    const client = this.client();
+    if (!client) {
+      return this.unavailableChannel(callback);
+    }
+    return client
       .channel(`edge-node:${nodeId}:control`)
       .on('broadcast', { event: 'CONTROL' }, callback)
       .subscribe();
@@ -251,7 +361,7 @@ export class SupabaseService implements OnModuleInit {
   // ========== CLEANUP ==========
 
   unsubscribe(channel: RealtimeChannel) {
-    if (channel) {
+    if (channel && this.supabase) {
       this.supabase.removeChannel(channel);
     }
   }
