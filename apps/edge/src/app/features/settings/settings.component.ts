@@ -32,7 +32,7 @@ import { PairingStoreService } from '../../core/pairing/pairing-store.service';
         olvidar vinculación
       </button>
       <button class="cta cta--ghost" (click)="clearServer()">
-        borrar URL del servidor
+        usar API desplegada
       </button>
       <button class="cta cta--ghost" (click)="back()">
         volver
@@ -97,6 +97,7 @@ export class SettingsComponent {
 
   async clearServer(): Promise<void> {
     await this.server.reset();
+    this.pair.clear();
     this.router.navigate(['/boot']);
   }
 

@@ -94,18 +94,14 @@ import { NetworkStatusService } from '../../core/network/network-status.service'
             <button class="cta cta--link" (click)="forgetPairing()">
               olvidar vinculación
             </button>
-          } @else if (pairingCode()) {
-            <div class="pair__state pair__state--wait">
-              <div class="pair__label">código de vinculación</div>
-              <div class="pair__code">{{ pairingCode() }}</div>
-              <p class="pair__hint">ingresá este código en la web · puerto 4200</p>
-              <p class="pair__hint">&gt; esperando…</p>
-            </div>
           } @else if (error()) {
             <p class="pair__error">{{ error() }}</p>
-            <button class="cta" (click)="showCode()">reintentar</button>
+            <button class="cta" [disabled]="connecting()" (click)="connectToWeb()">reintentar</button>
+          } @else if (connecting()) {
+            <div class="pair__state pair__state--wait">CONECTANDO</div>
+            <p class="pair__hint">enviando el nodo a la API para que la web lo detecte</p>
           } @else {
-            <button class="cta" (click)="showCode()">conectar con la web</button>
+            <button class="cta" [disabled]="connecting()" (click)="connectToWeb()">conectar con la web</button>
           }
         </section>
       }
@@ -219,14 +215,6 @@ import { NetworkStatusService } from '../../core/network/network-status.service'
       }
       .pair__state--ok { color: #ff7a1a; }
       .pair__state--wait { color: #39ff88; }
-      .pair__label {
-        color: #5c6773; font-size: 11px; text-transform: uppercase;
-        letter-spacing: 1px; margin-bottom: 8px;
-      }
-      .pair__code {
-        font-size: 48px; font-weight: 700; color: #39ff88;
-        letter-spacing: 8px; margin: 8px 0; word-break: break-all;
-      }
       .pair__hint { color: #5c6773; font-size: 11px; margin: 4px 0; }
       .pair__error {
         color: #ff4444; font-size: 12px; margin: 12px 0; white-space: pre-line;
@@ -260,19 +248,17 @@ export class BootComponent implements OnDestroy {
   readonly server = inject(ServerConfigService);
   readonly net = inject(NetworkStatusService);
 
-  readonly pairingCode = signal<string | null>(null);
   readonly paired = signal(this.pairStore.isPaired());
+  readonly connecting = signal(false);
   readonly error = signal<string | null>(null);
   readonly edgeNodeId = this.deviceIdentity.deviceId;
   readonly manualUrl = signal('');
-  private pollTimer?: ReturnType<typeof setInterval>;
 
   constructor() {
     this.net.start();
   }
 
   ngOnDestroy(): void {
-    this.stopPolling();
     this.net.stop();
   }
 
@@ -334,51 +320,32 @@ export class BootComponent implements OnDestroy {
     await this.server.discover();
   }
 
-  showCode(): void {
+  connectToWeb(): void {
     this.error.set(null);
     const base = this.server.apiBaseUrl();
     if (!base) {
       this.error.set('configurá primero la URL del servidor');
       return;
     }
+
+    this.connecting.set(true);
     this.http
-      .post<{ code: string; deviceId: string }>(`${base}/edge/register`, {
+      .post<{ deviceId: string; status: string }>(`${base}/edge/connect`, {
         deviceId: this.edgeNodeId(),
       })
       .subscribe({
         next: (res) => {
-          this.pairingCode.set(res.code);
-          this.startPolling();
+          this.paired.set(res.status === 'paired');
+          this.pairStore.setPaired(res.deviceId);
+          this.connecting.set(false);
         },
         error: (err) => {
+          this.connecting.set(false);
           this.error.set(
             `no se pudo conectar con ${base}\nstatus: ${err?.status ?? 'sin respuesta'}`,
           );
         },
       });
-  }
-
-  private startPolling(): void {
-    this.pollTimer = setInterval(() => {
-      const base = this.server.apiBaseUrl();
-      this.http
-        .get<{ paired: boolean }>(`${base}/edge/status/${this.edgeNodeId()}`)
-        .subscribe((res) => {
-          if (res.paired) {
-            this.paired.set(true);
-            this.pairingCode.set(null);
-            this.pairStore.setPaired(this.edgeNodeId());
-            this.stopPolling();
-          }
-        });
-    }, 3000);
-  }
-
-  private stopPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = undefined;
-    }
   }
 
   goToDashboard(): void {
@@ -389,6 +356,5 @@ export class BootComponent implements OnDestroy {
   forgetPairing(): void {
     this.pairStore.clear();
     this.paired.set(false);
-    this.pairingCode.set(null);
   }
 }
