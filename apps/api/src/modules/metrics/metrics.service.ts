@@ -31,7 +31,14 @@ export class MetricsService {
   private alertState = new Map<string, { highLatency: boolean; batteryLow: boolean }>();
 
   ingest(edgeNodeId: string, payload: Record<string, unknown>): void {
-    const entry = { ...payload, capturedAt: new Date().toISOString() } as FlatMetrics;
+    const entry = {
+      ...payload,
+      edgeNodeId,
+      capturedAt:
+        typeof payload['capturedAt'] === 'string'
+          ? payload['capturedAt']
+          : new Date().toISOString(),
+    } as FlatMetrics;
     this.latest.set(edgeNodeId, entry);
     const history = [...(this.history.get(edgeNodeId) ?? []), entry].slice(-30);
     this.history.set(edgeNodeId, history);
@@ -60,6 +67,8 @@ export class MetricsService {
 
     return {
       edgeNodeId: raw.edgeNodeId ?? edgeNodeId,
+      deviceName: typeof raw['deviceName'] === 'string' ? raw['deviceName'] : undefined,
+      deviceModel: typeof raw['deviceModel'] === 'string' ? raw['deviceModel'] : undefined,
       capturedAt,
       connectedDevicesCount: raw.connectedDevicesCount ?? 0,
       latency: {
@@ -83,6 +92,7 @@ export class MetricsService {
         edgeNodeId,
         levelPercent: raw.batteryLevelPercent ?? 0,
         isCharging: raw.isCharging ?? false,
+        temperatureC: typeof raw['temperatureC'] === 'number' ? raw['temperatureC'] : undefined,
         measuredAt: capturedAt,
       },
       speedtest: {

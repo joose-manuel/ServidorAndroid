@@ -19,6 +19,18 @@ import { Chart, registerables } from 'chart.js';
 
 Chart.register(...registerables);
 
+const DASHBOARD_CACHE_PREFIX = 'web_dashboard_cache:';
+
+interface DashboardCache {
+  deviceId: string;
+  snapshot: EdgeMetricsSnapshot | null;
+  timeLabels: string[];
+  latencyHistory: number[];
+  bandwidthHistory: Array<{ down: number; up: number }>;
+  batteryHistory: number[];
+  latestCapturedAt: string | null;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -46,6 +58,12 @@ Chart.register(...registerables);
             </div>
           </div>
         </hud-panel>
+        <hud-panel title="Temperatura Edge">
+          <div class="metric">
+            <div class="metric__value">{{ snapshot()?.battery?.temperatureC ?? '—' }}<span class="metric__unit">°C</span></div>
+            <div class="metric__sub">{{ snapshot()?.deviceName ?? 'sin nombre de dispositivo' }}</div>
+          </div>
+        </hud-panel>
         <hud-panel [title]="content.t('dashboard', 'download', 'Descarga')">
           <div class="metric">
             <div class="metric__value">{{ snapshot()?.speedtest?.downloadMbps ?? '—' }} <span class="metric__unit">{{ content.t('dashboard', 'mbps', 'Mbps') }}</span></div>
@@ -67,6 +85,7 @@ Chart.register(...registerables);
         <hud-panel [title]="content.t('dashboard', 'nodeStatus', 'Estado del nodo')">
           <status-badge [tone]="snapshot() ? 'online' : 'standby'" />
           <div class="metric__sub">{{ lastError() ?? 'telemetría en vivo desde la API' }}</div>
+          <div class="metric__sub">{{ snapshot()?.deviceModel ?? 'modelo sin detectar' }}</div>
         </hud-panel>
       </div>
 
@@ -154,6 +173,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly lastError = signal<string | null>(null);
 
   private timer?: ReturnType<typeof setInterval>;
+  private healthTimer?: ReturnType<typeof setInterval>;
   private chartsReady = false;
   private latestCapturedAt: string | null = null;
   private lastHistoryDeviceId: string | null = null;
@@ -172,9 +192,12 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
   private timeLabels: string[] = [];
 
   ngOnInit(): void {
+    this.loadCache();
     void this.refreshHistory();
     this.pollCurrent();
+    void this.checkServerHealth();
     this.timer = setInterval(() => this.pollCurrent(), 5000);
+    this.healthTimer = setInterval(() => void this.checkServerHealth(), 5000);
   }
 
   ngAfterViewInit(): void {
@@ -205,6 +228,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
             this.snapshot.set(latest);
             this.latestCapturedAt = latest.capturedAt;
           }
+          this.persistCache();
           this.loadingHistory.set(false);
           this.updateCharts();
         },
@@ -220,6 +244,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
     const deviceId = this.pairing.deviceId();
     if (!base || !deviceId) return;
     if (deviceId !== this.lastHistoryDeviceId) {
+      this.loadCache(deviceId);
       void this.refreshHistory();
     }
 
@@ -235,6 +260,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
           this.lastError.set(null);
           this.snapshot.set(snapshot);
           this.pushData(snapshot);
+          this.persistCache();
         },
         error: () => {
           this.snapshot.set(null);
@@ -267,6 +293,99 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
       },
     ].slice(-30);
     this.batteryHistory = [...this.batteryHistory, snapshot.battery?.levelPercent ?? 0].slice(-30);
+    this.updateCharts();
+  }
+
+  private checkServerHealth(): Promise<void> {
+    const base = this.server.apiBaseUrl();
+    if (!base) {
+      this.clearDashboardCache();
+      this.clearDashboardState();
+      this.lastError.set('sin servidor configurado');
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      this.http.get(`${base}/health`).subscribe({
+        next: () => resolve(),
+        error: () => {
+          this.clearDashboardCache();
+          this.clearDashboardState();
+          this.lastError.set('sin conexión con el servidor');
+          resolve();
+        },
+      });
+    });
+  }
+
+  private cacheKey(deviceId: string): string {
+    return `${DASHBOARD_CACHE_PREFIX}${deviceId}`;
+  }
+
+  private loadCache(deviceId = this.pairing.deviceId()): void {
+    if (!deviceId) {
+      return;
+    }
+
+    try {
+      const raw = localStorage.getItem(this.cacheKey(deviceId));
+      if (!raw) {
+        return;
+      }
+      const cache = JSON.parse(raw) as DashboardCache;
+      this.snapshot.set(cache.snapshot);
+      this.timeLabels = cache.timeLabels ?? [];
+      this.latencyHistory = cache.latencyHistory ?? [];
+      this.bandwidthHistory = cache.bandwidthHistory ?? [];
+      this.batteryHistory = cache.batteryHistory ?? [];
+      this.latestCapturedAt = cache.latestCapturedAt ?? null;
+      this.lastHistoryDeviceId = deviceId;
+      this.loadingHistory.set(false);
+      this.updateCharts();
+    } catch {
+      localStorage.removeItem(this.cacheKey(deviceId));
+    }
+  }
+
+  private persistCache(): void {
+    const deviceId = this.pairing.deviceId();
+    if (!deviceId) {
+      return;
+    }
+
+    const cache: DashboardCache = {
+      deviceId,
+      snapshot: this.snapshot(),
+      timeLabels: this.timeLabels,
+      latencyHistory: this.latencyHistory,
+      bandwidthHistory: this.bandwidthHistory,
+      batteryHistory: this.batteryHistory,
+      latestCapturedAt: this.latestCapturedAt,
+    };
+    localStorage.setItem(this.cacheKey(deviceId), JSON.stringify(cache));
+  }
+
+  private clearDashboardCache(): void {
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(DASHBOARD_CACHE_PREFIX)) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      localStorage.removeItem(key);
+    }
+  }
+
+  private clearDashboardState(): void {
+    this.snapshot.set(null);
+    this.loadingHistory.set(false);
+    this.latestCapturedAt = null;
+    this.timeLabels = [];
+    this.latencyHistory = [];
+    this.bandwidthHistory = [];
+    this.batteryHistory = [];
     this.updateCharts();
   }
 
@@ -393,6 +512,7 @@ export class DashboardComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.healthTimer) clearInterval(this.healthTimer);
     this.latencyChart?.destroy();
     this.bandwidthChart?.destroy();
     this.batteryChart?.destroy();

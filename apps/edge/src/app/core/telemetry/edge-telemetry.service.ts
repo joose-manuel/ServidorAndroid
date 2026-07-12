@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { ApiHealthService } from '../api/api-health.service';
 import { BatteryService } from '../battery/battery.service';
+import { DeviceInfoService } from '../device/device-info.service';
 import { NetworkStatusService } from '../network/network-status.service';
 import { SpeedTestService } from '../../features/speedtest/speedtest.service';
 
@@ -14,9 +15,12 @@ export interface TelemetrySample {
   uploadMbps: number | null;
   batteryPercent: number;
   isCharging: boolean;
+  temperatureC: number | null;
   connectedDevicesCount: number | null;
   networkState: string;
   apiState: string;
+  deviceName: string | null;
+  deviceModel: string | null;
 }
 
 export interface MetricPoint {
@@ -45,9 +49,12 @@ export class EdgeTelemetryService {
     uploadMbps: null,
     batteryPercent: 100,
     isCharging: true,
+    temperatureC: null,
     connectedDevicesCount: null,
     networkState: 'idle',
     apiState: 'idle',
+    deviceName: null,
+    deviceModel: null,
   });
 
   readonly latencyHistory = signal<MetricPoint[]>([]);
@@ -84,6 +91,7 @@ export class EdgeTelemetryService {
   constructor(
     private readonly network: NetworkStatusService,
     private readonly battery: BatteryService,
+    private readonly deviceInfo: DeviceInfoService,
     private readonly speedtest: SpeedTestService,
     private readonly api: ApiHealthService,
   ) {}
@@ -91,6 +99,7 @@ export class EdgeTelemetryService {
   start(intervalMs = 3_000): void {
     this.network.start();
     void this.battery.start();
+    this.deviceInfo.start();
     void this.speedtest.start().then(() => this.captureNow());
     this.api.start();
 
@@ -114,6 +123,7 @@ export class EdgeTelemetryService {
     const now = Date.now();
     const network = this.network.current();
     const battery = this.battery.info();
+    const deviceInfo = this.deviceInfo.current();
     const speed = this.speedtest.current();
     const apiSnapshot = this.api.snapshot();
     const connection = this.connectionProfile();
@@ -135,9 +145,12 @@ export class EdgeTelemetryService {
       uploadMbps,
       batteryPercent: battery.levelPercent,
       isCharging: battery.isCharging,
+      temperatureC: deviceInfo.temperatureC,
       connectedDevicesCount: this.connectedDevicesCount(),
       networkState: network.state,
       apiState: apiSnapshot.state,
+      deviceName: deviceInfo.deviceName,
+      deviceModel: deviceInfo.model,
     });
 
     this.pushPoint(this.latencyHistory, latencyMs, now);

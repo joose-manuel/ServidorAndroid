@@ -5,6 +5,7 @@ import { switchMap } from 'rxjs/operators';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { ServerConfigService } from '../config/server-config.service';
 import { DeviceIdentityService } from '../device/device-identity.service';
+import { DeviceInfoService } from '../device/device-info.service';
 import { NetworkStatusService } from '../network/network-status.service';
 import { BatteryService } from '../battery/battery.service';
 import { SpeedTestService } from '../../features/speedtest/speedtest.service';
@@ -14,6 +15,7 @@ export class MetricsReporterService {
   private readonly http = inject(HttpClient);
   private readonly server = inject(ServerConfigService);
   private readonly deviceIdentity = inject(DeviceIdentityService);
+  private readonly deviceInfo = inject(DeviceInfoService);
   private readonly net = inject(NetworkStatusService);
   private readonly battery = inject(BatteryService);
   private readonly injector = inject(Injector);
@@ -44,6 +46,7 @@ export class MetricsReporterService {
     const speed = speedService?.current() ?? null;
     const netStatus = this.net.current();
     const bat = this.battery.info();
+    const deviceInfo = this.deviceInfo.current();
 
     const payload = {
       edgeNodeId,
@@ -54,9 +57,12 @@ export class MetricsReporterService {
       packetLossPercent: 0,
       batteryLevelPercent: bat.levelPercent,
       isCharging: bat.isCharging,
+      temperatureC: deviceInfo.temperatureC,
       connectedDevicesCount: null,
       downloadMbps: speed?.downloadMbps ?? speed?.mbps ?? null,
       uploadMbps: speed?.uploadMbps ?? null,
+      deviceName: deviceInfo.deviceName,
+      deviceModel: deviceInfo.model,
       pingMs: speed?.pingMs ?? (
         netStatus.state === 'ok' || netStatus.state === 'slow'
           ? netStatus.latencyMs

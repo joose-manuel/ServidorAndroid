@@ -2,6 +2,7 @@ import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { ApiHealthService } from '../../core/api/api-health.service';
+import { DeviceInfoService } from '../../core/device/device-info.service';
 import { DeviceIdentityService } from '../../core/device/device-identity.service';
 import { PairingStoreService } from '../../core/pairing/pairing-store.service';
 import {
@@ -51,6 +52,11 @@ import {
           <strong class="summary-card__value">{{ telemetry.snapshot().batteryPercent }}</strong>
           <span class="summary-card__unit">%</span>
         </article>
+        <article class="summary-card summary-card--violet">
+          <span class="summary-card__label">Temperatura</span>
+          <strong class="summary-card__value">{{ telemetry.snapshot().temperatureC ?? '—' }}</strong>
+          <span class="summary-card__unit">°C</span>
+        </article>
       </section>
 
       <section class="dash__grid">
@@ -81,6 +87,10 @@ import {
             <div class="kv">
               <span class="kv__label">Dispositivos</span>
               <span class="kv__value">{{ telemetry.snapshot().connectedDevicesCount ?? 'pendiente' }}</span>
+            </div>
+            <div class="kv">
+              <span class="kv__label">Equipo</span>
+              <span class="kv__value">{{ deviceInfo.current().deviceName }}</span>
             </div>
             <div class="kv">
               <span class="kv__label">Node ID</span>
@@ -357,6 +367,7 @@ import {
       .summary-card--cyan { color: #41e0d1; }
       .summary-card--green { color: #39ff88; }
       .summary-card--yellow { color: #ffd23f; }
+      .summary-card--violet { color: #9f7aea; }
       .summary-card__label {
         display: block;
         font-size: 10px;
@@ -524,6 +535,7 @@ export class DashboardComponent {
   readonly telemetry = inject(EdgeTelemetryService);
   readonly api = inject(ApiHealthService);
   readonly device = inject(DeviceIdentityService);
+  readonly deviceInfo = inject(DeviceInfoService);
   readonly pair = inject(PairingStoreService);
   private readonly chartWidth = 600;
   private readonly chartHeight = 160;

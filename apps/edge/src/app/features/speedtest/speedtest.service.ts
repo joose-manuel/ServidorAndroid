@@ -15,6 +15,7 @@ export interface SpeedSample {
 export interface SpeedConfig {
   intervalSec: number;
   durationSec: number;
+  scheduledTimeLocal: string | null;
   downloadTargetUrl: string;
   uploadTargetUrl: string;
   pingTargetUrl: string;
@@ -32,6 +33,7 @@ function defaultConfig(): SpeedConfig {
   return {
     intervalSec: DEFAULT_INTERVAL_SEC,
     durationSec: DEFAULT_DURATION_SEC,
+    scheduledTimeLocal: null,
     downloadTargetUrl: DEFAULT_DOWNLOAD_TARGET,
     uploadTargetUrl: DEFAULT_UPLOAD_TARGET,
     pingTargetUrl: DEFAULT_PING_TARGET,
@@ -60,11 +62,13 @@ export class SpeedTestService {
     if (!h.length) return null;
     return Math.max(...h.map((s) => s.mbps));
   });
+  readonly nextScheduledAt = computed(() => this.computeNextScheduledAt(this._config().scheduledTimeLocal));
 
   private readonly _config = signal<SpeedConfig>(this.loadConfig());
   readonly config = this._config.asReadonly();
 
-  private timer?: ReturnType<typeof setInterval>;
+  private intervalTimer?: ReturnType<typeof setInterval>;
+  private scheduledTimer?: ReturnType<typeof setTimeout>;
   private inflight = false;
 
   private loadConfig(): SpeedConfig {
@@ -79,22 +83,21 @@ export class SpeedTestService {
     const next = { ...this._config(), ...patch };
     this._config.set(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (this._running()) {
+      this.armTimers();
+    }
   }
 
   async start(): Promise<void> {
     if (this._running()) return;
     this._running.set(true);
     await this.measureOnce();
-    const intervalMs = Math.max(5, this._config().intervalSec) * 1000;
-    this.timer = setInterval(() => void this.measureOnce(), intervalMs);
+    this.armTimers();
   }
 
   stop(): void {
     if (!this._running()) return;
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
+    this.clearTimers();
     this._running.set(false);
   }
 
@@ -153,6 +156,65 @@ export class SpeedTestService {
       durationMs: download?.durationMs ?? 0,
       measuredAt: Date.now(),
     };
+  }
+
+  private armTimers(): void {
+    this.clearTimers();
+
+    const intervalMs = Math.max(5, this._config().intervalSec) * 1000;
+    this.intervalTimer = setInterval(() => void this.measureOnce(), intervalMs);
+    this.armScheduledMeasurement();
+  }
+
+  private armScheduledMeasurement(): void {
+    const scheduledAt = this.computeNextScheduledAt(this._config().scheduledTimeLocal);
+    if (!scheduledAt) {
+      return;
+    }
+
+    const delayMs = Math.max(1000, scheduledAt.getTime() - Date.now());
+    this.scheduledTimer = setTimeout(() => {
+      void this.measureOnce().finally(() => this.armScheduledMeasurement());
+    }, delayMs);
+  }
+
+  private clearTimers(): void {
+    if (this.intervalTimer) {
+      clearInterval(this.intervalTimer);
+      this.intervalTimer = undefined;
+    }
+    if (this.scheduledTimer) {
+      clearTimeout(this.scheduledTimer);
+      this.scheduledTimer = undefined;
+    }
+  }
+
+  private computeNextScheduledAt(rawTime: string | null): Date | null {
+    if (!rawTime) {
+      return null;
+    }
+
+    const [hoursText, minutesText] = rawTime.split(':');
+    const hours = Number(hoursText);
+    const minutes = Number(minutesText);
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes) ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59
+    ) {
+      return null;
+    }
+
+    const next = new Date();
+    next.setSeconds(0, 0);
+    next.setHours(hours, minutes, 0, 0);
+    if (next.getTime() <= Date.now()) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next;
   }
 
   private async tryMeasurePing(url: string): Promise<number | null> {
