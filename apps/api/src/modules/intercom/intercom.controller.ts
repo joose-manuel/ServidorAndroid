@@ -2,17 +2,27 @@ import { Body, Controller, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { IntercomService } from './intercom.service';
 import { RequestIntercomDto, SetIntercomMuteDto } from '@servidor/shared-dto';
+import { WebRTCGateway } from '../webrtc/webrtc.gateway';
 
 @Controller('intercom')
 export class IntercomController {
-  constructor(private readonly intercom: IntercomService) {}
+  constructor(
+    private readonly intercom: IntercomService,
+    private readonly webrtc: WebRTCGateway,
+  ) {}
 
   @Post('session')
   request(@Body() dto: RequestIntercomDto, @Req() req: Request) {
-    return this.intercom.request({
+    const session = this.intercom.request({
       edgeNodeId: dto.edgeNodeId,
       userId: (req as any).userId ?? 'unknown',
     });
+    this.webrtc.notifySessionRequested({
+      sessionId: session.id,
+      edgeNodeId: dto.edgeNodeId,
+      mode: 'intercom',
+    });
+    return session;
   }
 
   @Post('session/:id/mute')

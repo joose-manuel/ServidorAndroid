@@ -1,4 +1,5 @@
 @use '@servidor/ui-design-tokens' as *;
+@import 'primeicons/primeicons.css';
 
 html,
 body {
@@ -11,4 +12,42 @@ body {
   background-color: $bg-base;
   color: $text-primary;
   font-family: $font-mono;
+}
+
+/* PrimeNG overrides for retro theme */
+.p-dialog {
+  background: #0a0e14 !important;
+  border: 1px solid #1c2530 !important;
+  color: #d7dee3 !important;
+  border-radius: 0 !important;
+}
+
+.p-dialog .p-dialog-header {
+  background: #0a0e14 !important;
+  color: #ff7a1a !important;
+  border-bottom: 1px solid #1c2530 !important;
+  padding: 12px 16px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+}
+
+.p-dialog .p-dialog-header .p-dialog-header-icon {
+  color: #5c6773 !important;
+}
+
+.p-dialog .p-dialog-content {
+  background: #0a0e14 !important;
+  color: #d7dee3 !important;
+  padding: 16px !important;
+}
+
+.p-dialog .p-dialog-footer {
+  background: #0a0e14 !important;
+  border-top: 1px solid #1c2530 !important;
+  padding: 12px 16px !important;
+}
+
+.p-overlay-mask {
+  background: rgba(0, 0, 0, 0.7) !important;
 }

@@ -33,10 +33,10 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Build api
-        run: npx nx build api
+        run: npm run build:api
 
       - name: Build web
-        run: npx nx build web
+        run: npm run build:web
 
       - name: Build edge
-        run: npx nx build edge
+        run: npm run build:edge

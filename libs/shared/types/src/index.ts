@@ -9,3 +9,4 @@ export * from './lib/audit-log';
 export * from './lib/edge-node';
 export * from './lib/turn-credentials';
 export * from './lib/api-response';
+export * from './lib/webrtc-signaling';

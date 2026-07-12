@@ -2,6 +2,8 @@ import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withHashLocation } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
+import { providePrimeNG } from 'primeng/config';
+
 import { environment } from '../environments/environment';
 
 import { APP_ROUTES } from './app.routes';
@@ -13,5 +15,6 @@ export const appConfig: ApplicationConfig = {
     provideRouter(APP_ROUTES, withHashLocation()),
     provideHttpClient(withInterceptors([authInterceptor])),
     provideAnimations(),
+    providePrimeNG({ theme: 'none' }),
   ],
 };
