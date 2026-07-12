@@ -9,7 +9,7 @@ async function bootstrap(): Promise<void> {
   });
 
   app.enableCors({
-    origin: environment.production ? environment.corsOrigins : true,
+    origin: true,
     credentials: true,
   });
 

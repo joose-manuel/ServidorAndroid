@@ -15,52 +15,42 @@
   ],
   "scripts": {
     "postinstall": "nx --version || true",
-
     "front": "nx serve web",
     "back": "nx serve api",
     "android": "nx serve edge",
-
     "start": "nx serve",
     "start:web": "nx serve web",
     "start:api": "nx serve api",
     "start:api:prod": "TS_NODE_PROJECT=apps/api/tsconfig.app.json node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/main.ts",
     "start:api:seenode": "TS_NODE_PROJECT=apps/api/tsconfig.app.json node -r ts-node/register/transpile-only -r tsconfig-paths/register apps/api/src/main.ts",
     "start:edge": "nx serve edge",
-
     "build": "nx run-many -t build",
     "build:web": "nx build web --configuration=production",
     "build:api": "nx build api --configuration=production",
     "build:edge": "nx build edge --configuration=production",
     "build:all": "nx run-many -t build --configuration=production",
-
     "test": "nx run-many -t test",
     "test:affected": "nx affected -t test",
     "test:web": "nx test web",
     "test:api": "nx test api",
     "test:edge": "nx test edge",
-
     "lint": "nx run-many -t lint",
     "lint:affected": "nx affected -t lint",
     "lint:web": "nx lint web",
     "lint:api": "nx lint api",
     "lint:edge": "nx lint edge",
-
     "format": "nx format:write",
     "format:check": "nx format:check",
     "graph": "nx graph",
     "affected:graph": "nx affected:graph",
     "reset": "nx reset",
-
     "cap:sync": "nx run edge:cap:sync",
     "cap:sync:edge": "nx run edge:cap:sync",
     "cap:open:android": "nx run edge:cap:open:android",
-
     "migrate:run": "nx run api:migration:run",
     "migrate:revert": "nx run api:migration:revert",
     "migrate:generate": "nx run api:migration:generate",
-
     "prepare": "husky install || true",
-
     "tunnel": "cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {
@@ -72,39 +62,36 @@
     "@angular/platform-browser": "~18.2.0",
     "@angular/platform-browser-dynamic": "~18.2.0",
     "@angular/router": "~18.2.0",
-
-    "@ionic/angular": "^7.8.6",
-    "ionicons": "^7.4.0",
-
     "@capacitor/android": "^6.2.1",
     "@capacitor/cli": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/http": "0.0.2",
-    "capacitor-foreground-service": "^1.0.3",
-
+    "@ionic/angular": "^7.8.6",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",
     "@nestjs/core": "^10.4.0",
+    "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/platform-socket.io": "^10.4.0",
     "@nestjs/schedule": "^4.1.0",
     "@nestjs/typeorm": "^10.0.2",
     "@nestjs/websockets": "^10.4.0",
-
     "@supabase/supabase-js": "^2.45.0",
-
+    "bcryptjs": "^3.0.3",
+    "capacitor-foreground-service": "^1.0.3",
     "chart.js": "^4.4.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",
+    "ionicons": "^7.4.0",
     "pg": "^8.13.0",
-    "reflect-metadata": "^0.2.2",
     "recharts": "^2.13.0",
+    "reflect-metadata": "^0.2.2",
     "rxjs": "~7.8.0",
     "socket.io": "^4.7.5",
-    "tslib": "^2.7.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tslib": "^2.7.0",
     "typeorm": "~0.3.20",
     "zone.js": "~0.14.10"
   },
@@ -128,7 +115,9 @@
     "@nx/nest": "18.3.5",
     "@nx/node": "18.3.5",
     "@nx/workspace": "18.3.5",
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^29.5.12",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.14.0",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^7.16.0",

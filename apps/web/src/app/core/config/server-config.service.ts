@@ -41,7 +41,7 @@ export class ServerConfigService {
     if (saved) {
       this._apiBaseUrl.set(this.normalize(saved));
     }
-    void this.autoDiscover();
+    console.log(`[ServerConfig] apiBaseUrl = ${this._apiBaseUrl()}${saved ? ' (from localStorage)' : ' (default)'}`);
   }
 
   async setApiBaseUrl(rawUrl: string): Promise<void> {
@@ -61,11 +61,7 @@ export class ServerConfigService {
 
   async autoDiscover(): Promise<DiscoveryResult | null> {
     try {
-      const info = await this.discover();
-      if (info?.state === 'ok' && info.tunnelUrl && info.tunnelUrl !== this._apiBaseUrl()) {
-        await this.setApiBaseUrl(info.tunnelUrl);
-      }
-      return info;
+      return await this.discover();
     } catch {
       return null;
     }

@@ -49,6 +49,9 @@ TURN_SERVER_DOMAIN=turn.example.com
 TURN_SHARED_SECRET=change-me
 TURN_CREDENTIAL_TTL_SECONDS=3600
 STUN_SERVER_URL=stun:stun.l.google.com:19302
+
+# JWT para auth local (cambiar en producción)
+JWT_SECRET=servidor-android-secret-key-change-in-production
 ```
 
 ## Ajuste pendiente cuando exista el frontend

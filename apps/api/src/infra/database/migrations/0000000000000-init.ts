@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class Init0000000000000 implements MigrationInterface {
-  name = 'Init0000000000000';
+export class Init1700000000000 implements MigrationInterface {
+  name = 'Init1700000000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // TypeORM synchronize is OFF; create the initial schema here.
@@ -12,6 +12,7 @@ export class Init0000000000000 implements MigrationInterface {
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         email varchar(255) UNIQUE NOT NULL,
         display_name varchar(255) NOT NULL,
+        password_hash varchar(255),
         role varchar(32) NOT NULL DEFAULT 'viewer',
         created_at timestamptz NOT NULL DEFAULT now(),
         last_login_at timestamptz

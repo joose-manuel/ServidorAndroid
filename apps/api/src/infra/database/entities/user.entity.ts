@@ -8,8 +8,11 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255, unique: true })
   email!: string;
 
-  @Column({ type: 'varchar', length: 255, name: 'display_name' })
+  @Column({ type: 'varchar', length: 255, name: 'display_name', default: '' })
   displayName!: string;
+
+  @Column({ type: 'varchar', length: 255, name: 'password_hash', nullable: true })
+  passwordHash!: string | null;
 
   @Column({ type: 'varchar', length: 32, default: 'viewer' })
   role!: 'owner' | 'admin' | 'viewer';
