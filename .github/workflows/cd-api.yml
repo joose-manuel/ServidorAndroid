@@ -25,10 +25,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -37,7 +37,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Restore Nx cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .nx/cache
           key: nx-cache-api-${{ runner.os }}-${{ hashFiles('nx.json', 'package-lock.json', 'tsconfig.base.json') }}
@@ -48,7 +48,7 @@ jobs:
         run: npx nx build api --configuration=production
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -56,7 +56,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/servidorandroid-api
           tags: |
@@ -67,7 +67,7 @@ jobs:
 
       - name: Build & push Docker image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: infra/docker/api.Dockerfile

@@ -20,12 +20,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -34,7 +34,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Restore Nx cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .nx/cache
           key: nx-cache-web-${{ runner.os }}-${{ hashFiles('nx.json', 'package-lock.json', 'tsconfig.base.json') }}
@@ -45,7 +45,7 @@ jobs:
         run: npx nx build web --configuration=production
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-dist
           path: dist/apps/web
@@ -53,7 +53,7 @@ jobs:
 
       - name: Deploy to Netlify
         id: deploy
-        uses: nwtgck/actions-netlify@v3.0
+        uses: nwtgck/actions-netlify@v4.0
         with:
           publish-dir: dist/apps/web/browser
           production-branch: main
