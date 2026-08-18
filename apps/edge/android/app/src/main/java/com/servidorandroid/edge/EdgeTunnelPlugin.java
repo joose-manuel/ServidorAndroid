@@ -30,6 +30,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * @deprecated Legacy cloudflared tunnel + local ApiServer. No code in
+ * apps/edge/src invokes this plugin (neither start nor stop), so the tunnel
+ * never runs at runtime. Decision pending: remove or revive (see the
+ * cleanup/dead-code branch plan).
+ */
 @CapacitorPlugin(name = "EdgeTunnel")
 public class EdgeTunnelPlugin extends Plugin {
 

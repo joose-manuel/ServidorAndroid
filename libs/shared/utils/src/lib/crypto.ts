@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHmac } from 'crypto';
 
 /**
  * Build short-lived TURN credentials as described in the
@@ -24,26 +24,4 @@ export function buildTurnCredentials(
     ttlSeconds,
     expiresAt: new Date(expiresAt * 1000).toISOString(),
   };
-}
-
-export function verifyTurnCredential(
-  sharedSecret: string,
-  username: string,
-  credential: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
-): boolean {
-  const parts = username.split(':');
-  if (parts.length !== 2) return false;
-  const expiresAt = Number(parts[0]);
-  if (!Number.isFinite(expiresAt) || expiresAt < nowSeconds) return false;
-
-  const expected = createHmac('sha1', sharedSecret).update(username).digest('base64');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(credential);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-export function generateRequestId(): string {
-  return randomBytes(8).toString('hex');
 }
