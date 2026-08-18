@@ -74,11 +74,6 @@ export class WebrtcSignalingService {
     this.socket?.emit('session-end', { sessionId, durationSeconds });
   }
 
-  disconnect(): void {
-    this.socket?.disconnect();
-    this.socket = null;
-  }
-
   private namespaceUrl(): string | null {
     const apiBaseUrl = this.server.apiBaseUrl();
     if (!apiBaseUrl) {

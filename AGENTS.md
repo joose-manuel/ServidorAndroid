@@ -13,7 +13,7 @@ Three Nx apps plus six libraries, all in one repository:
 | `apps/edge` | `scope:edge` | Ionic 7 + Capacitor 6 (Android) → signed APK |
 | `libs/shared/types` | `scope:shared` | TS interfaces shared by all 3 apps |
 | `libs/shared/dto` | `scope:shared` | Request/response shapes |
-| `libs/shared/utils` | `scope:shared` | Pure helpers (date, network, crypto, severity) |
+| `libs/shared/utils` | `scope:shared` | Pure helpers (network, crypto) |
 | `libs/shared/supabase` | `scope:shared` | Channel/event name constants, config reader |
 | `libs/ui/design-tokens` | `scope:ui` | Retro-telemetry TS + SCSS tokens |
 | `libs/ui/components` | `scope:ui` | Angular standalone components (`hud-panel`, `status-badge`, `cmd-button`, `corner-brackets`) |

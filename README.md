@@ -18,7 +18,7 @@ This repository is the **Nx monorepo** for the project — the canonical archite
 
 libs/shared/types         shared TS interfaces (User, Modem, Metric, …)
 libs/shared/dto           request/response shapes shared by web + api
-libs/shared/utils         pure helpers (date, network, crypto, severity)
+libs/shared/utils         pure helpers (network, crypto)
 libs/shared/supabase      channel/event name constants + config reader
 libs/ui/design-tokens     retro-telemetry color/type/spacing tokens
 libs/ui/components        <hud-panel>, <status-badge>, <cmd-button>, …

@@ -45,10 +45,6 @@ export class ModemService {
     };
   }
 
-  async runCronIfDue(): Promise<void> {
-    // Hook for @Cron-managed jobs (Sprint 1, HU-03).
-  }
-
   @Cron(CronExpression.EVERY_DAY_AT_4AM, { name: 'modem-nightly-reboot' })
   scheduledNightlyReboot(): void {
     if (environment.production) {

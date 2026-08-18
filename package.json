@@ -107,6 +107,7 @@
     "@angular-eslint/template-parser": "^18.0.0",
     "@angular/cli": "~18.2.0",
     "@angular/compiler-cli": "~18.2.0",
+    "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.4.0",
     "@nx/angular": "18.3.5",
